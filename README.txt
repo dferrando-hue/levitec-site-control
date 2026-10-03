@@ -1,53 +1,15 @@
-LEVITEC SITE CONTROL v0.3.4
+LEVITEC SITE CONTROL v0.3.5
 =========================
 
-NUEVO: TRAMITACION DE PEDIDOS
------------------------------
-Cada solicitud incorpora ahora el botón TRAMITAR.
-
-La ventana de tramitación muestra claramente:
-- proveedor
-- familia / imputación
-- fecha requerida
-- destino
-- materiales
-- observaciones
-
-Administración puede editar:
-- familia / imputación
-- estado
-- nº PO / Sage
-- fecha prevista de entrega
-
-VALIDACIONES
+HOTFIX LOGIN
 ------------
-PEDIDO EMITIDO:
-- familia obligatoria
-- nº PO / Sage obligatorio
+El inicio de Google se ejecuta antes de enlazar los controles de módulos.
+Así, aunque exista un error de runtime en una pantalla secundaria, el botón de inicio de sesión sigue apareciendo.
 
-CONFIRMADO PROVEEDOR:
-- familia obligatoria
-- nº PO / Sage obligatorio
-- fecha prevista de entrega obligatoria
-
-BACKEND
--------
-La hoja SOLICITUDES_PEDIDO se amplía automáticamente con:
-FECHA_ENTREGA_PREVISTA
-
-No borres la hoja ni los pedidos existentes.
-
-INSTALACION
------------
-APPS SCRIPT
-1. Sustituir TODO Código.gs por Code.gs.
-2. Guardar.
-3. Ejecutar testUserAccess().
-4. Desplegar nueva versión:
-   CORE v0.6.3 - Purchase Workflow
+No cambia el backend respecto a v0.3.4.
 
 GITHUB
-1. Reemplazar index.html, styles.css y app.js.
-2. Commit:
-   Frontend v0.3.4 - Purchase Workflow
-3. Ctrl+F5.
+------
+Reemplazar index.html y app.js. styles.css puede reemplazarse también para mantener el paquete completo.
+Commit: Frontend v0.3.5 - Login bootstrap hotfix
+Después Ctrl+F5.
