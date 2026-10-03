@@ -8,7 +8,14 @@ const state = {
   bootstrap: null,
   currentProject: null,
   adminProjects: [],
-  purchases: []
+  purchases: [],
+  purchaseSuggestions: {
+    suppliers: [],
+    families: [],
+    destinations: [],
+    materials: []
+  },
+  purchaseSubmitting: false
 };
 
 const $ = id => document.getElementById(id);
@@ -70,6 +77,7 @@ const el = {
   closePurchaseModalBtn: $('closePurchaseModalBtn'),
   cancelPurchaseBtn: $('cancelPurchaseBtn'),
   purchaseForm: $('purchaseForm'),
+  purchaseClientRequestId: $('purchaseClientRequestId'),
   purchaseModalProject: $('purchaseModalProject'),
   purchaseSupplier: $('purchaseSupplier'),
   purchaseFamily: $('purchaseFamily'),
@@ -82,6 +90,11 @@ const el = {
   purchaseNotes: $('purchaseNotes'),
   materialsRows: $('materialsRows'),
   addMaterialRowBtn: $('addMaterialRowBtn'),
+  supplierSuggestions: $('supplierSuggestions'),
+  familySuggestions: $('familySuggestions'),
+  destinationSuggestions: $('destinationSuggestions'),
+  materialReferenceSuggestions: $('materialReferenceSuggestions'),
+  submitPurchaseBtn: $('submitPurchaseBtn'),
 
   backendForm: $('backendForm'),
   backendAction: $('backendAction'),
@@ -213,6 +226,10 @@ window.addEventListener('message', event => {
       handlePurchaseList(msg.payload);
       break;
 
+    case 'purchaseSuggestions':
+      handlePurchaseSuggestions(msg.payload);
+      break;
+
     case 'purchaseCreate':
       handlePurchaseMutation(msg.payload);
       break;
@@ -229,6 +246,7 @@ window.addEventListener('message', event => {
         setStatus(el.adminProjectStatus, msg.payload?.message || 'Error de servidor.', 'error');
       }
       if (!el.purchasesView.classList.contains('hidden')) {
+        setPurchaseSubmitting(false);
         setStatus(el.purchaseStatus, msg.payload?.message || 'Error de servidor.', 'error');
       }
       break;
@@ -490,6 +508,109 @@ function openPurchases() {
   postToBackend('purchaseList', {
     projectId: state.currentProject.id
   });
+
+  postToBackend('purchaseSuggestions', {
+    projectId: state.currentProject.id
+  });
+}
+
+
+function handlePurchaseSuggestions(payload) {
+  if (!payload?.ok) return;
+
+  state.purchaseSuggestions = {
+    suppliers: Array.isArray(payload.suppliers) ? payload.suppliers : [],
+    families: Array.isArray(payload.families) ? payload.families : [],
+    destinations: Array.isArray(payload.destinations) ? payload.destinations : [],
+    materials: Array.isArray(payload.materials) ? payload.materials : []
+  };
+
+  renderPurchaseSuggestions();
+}
+
+function renderPurchaseSuggestions() {
+  el.supplierSuggestions.innerHTML =
+    state.purchaseSuggestions.suppliers
+      .map(value => `<option value="${esc(value)}"></option>`)
+      .join('');
+
+  el.familySuggestions.innerHTML =
+    state.purchaseSuggestions.families
+      .map(value => `<option value="${esc(value)}"></option>`)
+      .join('');
+
+  el.destinationSuggestions.innerHTML =
+    state.purchaseSuggestions.destinations
+      .map(item => `<option value="${esc(item.destination)}"></option>`)
+      .join('');
+
+  el.materialReferenceSuggestions.innerHTML =
+    state.purchaseSuggestions.materials
+      .filter(item => item.reference)
+      .map(item => `<option value="${esc(item.reference)}">${esc(item.description || '')}</option>`)
+      .join('');
+}
+
+function applyDestinationSuggestion() {
+  const value = el.purchaseDestination.value.trim().toLowerCase();
+
+  const match = state.purchaseSuggestions.destinations.find(item =>
+    String(item.destination || '').trim().toLowerCase() === value
+  );
+
+  if (!match) return;
+
+  if (match.type) el.purchaseDestinationType.value = match.type;
+  if (match.address) el.purchaseAddress.value = match.address;
+  if (match.contact) el.purchaseContact.value = match.contact;
+  if (match.family && !el.purchaseFamily.value) el.purchaseFamily.value = match.family;
+}
+
+function applyMaterialSuggestion(row) {
+  const refInput = row.querySelector('.mat-ref');
+  const value = refInput.value.trim().toLowerCase();
+
+  const match = state.purchaseSuggestions.materials.find(item =>
+    String(item.reference || '').trim().toLowerCase() === value
+  );
+
+  if (!match) return;
+
+  const desc = row.querySelector('.mat-desc');
+  const price = row.querySelector('.mat-price');
+
+  if (!desc.value && match.description) desc.value = match.description;
+  if (!price.value && match.unitPrice) price.value = match.unitPrice;
+
+  if (!el.purchaseSupplier.value && match.supplier) {
+    el.purchaseSupplier.value = match.supplier;
+  }
+
+  if (!el.purchaseFamily.value && match.family) {
+    el.purchaseFamily.value = match.family;
+  }
+}
+
+function newClientRequestId() {
+  if (window.crypto?.randomUUID) {
+    return crypto.randomUUID();
+  }
+
+  return (
+    Date.now().toString(36) +
+    '-' +
+    Math.random().toString(36).slice(2) +
+    '-' +
+    Math.random().toString(36).slice(2)
+  );
+}
+
+function setPurchaseSubmitting(isSubmitting) {
+  state.purchaseSubmitting = isSubmitting;
+  el.submitPurchaseBtn.disabled = isSubmitting;
+  el.submitPurchaseBtn.textContent = isSubmitting
+    ? 'Creando…'
+    : 'Crear solicitud';
 }
 
 function handlePurchaseList(payload) {
@@ -555,7 +676,10 @@ function renderPurchases() {
           <strong>${esc(req.requestId)}</strong>
           <span>${esc(req.supplier)} · ${esc(req.createdAt)}</span>
         </div>
-        <span class="purchase-status-pill ${statusClass}">${esc(statusLabel)}</span>
+        <div class="purchase-card-head-actions">
+          <span class="purchase-status-pill ${statusClass}">${esc(statusLabel)}</span>
+          <button class="btn btn-secondary btn-sm reuse-purchase-btn" type="button">Reutilizar</button>
+        </div>
       </div>
 
       <div class="purchase-card-body">
@@ -584,6 +708,9 @@ function renderPurchases() {
       ${req.notes ? `<div class="purchase-notes">${esc(req.notes)}</div>` : ''}
     `;
 
+    card.querySelector('.reuse-purchase-btn')
+      .addEventListener('click', () => openPurchaseModal(req));
+
     el.purchaseList.appendChild(card);
   });
 }
@@ -599,15 +726,41 @@ function statusText(status) {
   return map[status] || status || '—';
 }
 
-function openPurchaseModal() {
+function openPurchaseModal(sourceRequest=null) {
   if (!state.currentProject) return;
 
   el.purchaseForm.reset();
   el.materialsRows.innerHTML = '';
-  addMaterialRow();
+  el.purchaseClientRequestId.value = newClientRequestId();
+
   el.purchaseModalProject.textContent =
     `${state.currentProject.name || state.currentProject.id} · ${state.currentProject.campus || ''}`;
 
+  if (sourceRequest) {
+    el.purchaseSupplier.value = sourceRequest.supplier || '';
+    el.purchaseFamily.value = sourceRequest.family || '';
+    el.purchaseRequiredDate.value = sourceRequest.requiredDate || '';
+    el.purchaseQuoteRef.value = sourceRequest.quoteRef || '';
+    el.purchaseDestinationType.value = sourceRequest.destinationType || 'ALMACEN';
+    el.purchaseDestination.value = sourceRequest.destination || '';
+    el.purchaseAddress.value = sourceRequest.deliveryAddress || '';
+    el.purchaseContact.value = sourceRequest.siteContact || '';
+    el.purchaseNotes.value = sourceRequest.notes || '';
+
+    const materials = Array.isArray(sourceRequest.materials)
+      ? sourceRequest.materials
+      : [];
+
+    if (materials.length) {
+      materials.forEach(item => addMaterialRow(item));
+    } else {
+      addMaterialRow();
+    }
+  } else {
+    addMaterialRow();
+  }
+
+  setPurchaseSubmitting(false);
   el.purchaseModal.classList.remove('hidden');
 }
 
@@ -615,33 +768,39 @@ function closePurchaseModal() {
   el.purchaseModal.classList.add('hidden');
 }
 
-function addMaterialRow() {
+function addMaterialRow(source=null) {
   const row = document.createElement('div');
   row.className = 'material-row';
 
   row.innerHTML = `
     <label>
       <span>Referencia</span>
-      <input class="mat-ref" type="text" placeholder="738953159">
+      <input class="mat-ref" type="text" list="materialReferenceSuggestions" placeholder="738953159" value="${esc(source?.reference || '')}">
     </label>
 
     <label>
       <span>Descripción</span>
-      <input class="mat-desc" type="text" placeholder="Descripción del material">
+      <input class="mat-desc" type="text" placeholder="Descripción del material" value="${esc(source?.description || '')}">
     </label>
 
     <label>
       <span>Cantidad</span>
-      <input class="mat-qty" type="text" placeholder="100">
+      <input class="mat-qty" type="text" placeholder="100" value="${esc(source?.quantity || '')}">
     </label>
 
     <label>
       <span>Precio unit.</span>
-      <input class="mat-price" type="text" placeholder="Opcional">
+      <input class="mat-price" type="text" placeholder="Opcional" value="${esc(source?.unitPrice || '')}">
     </label>
 
     <button class="remove-material" type="button" title="Eliminar línea">×</button>
   `;
+
+  row.querySelector('.mat-ref')
+    .addEventListener('change', () => applyMaterialSuggestion(row));
+
+  row.querySelector('.mat-ref')
+    .addEventListener('blur', () => applyMaterialSuggestion(row));
 
   row.querySelector('.remove-material').addEventListener('click', () => {
     if (el.materialsRows.children.length === 1) {
@@ -673,9 +832,10 @@ function collectMaterials() {
 el.purchaseForm.addEventListener('submit', event => {
   event.preventDefault();
 
-  if (!state.currentProject) return;
+  if (!state.currentProject || state.purchaseSubmitting) return;
 
   const payload = {
+    clientRequestId: el.purchaseClientRequestId.value || newClientRequestId(),
     projectId: state.currentProject.id,
     supplier: el.purchaseSupplier.value,
     family: el.purchaseFamily.value,
@@ -689,12 +849,15 @@ el.purchaseForm.addEventListener('submit', event => {
     materials: collectMaterials()
   };
 
+  setPurchaseSubmitting(true);
   setStatus(el.purchaseStatus, 'Creando solicitud…');
 
   postToBackend('purchaseCreate', payload);
 });
 
 function handlePurchaseMutation(payload) {
+  setPurchaseSubmitting(false);
+
   if (!payload?.ok) {
     setStatus(el.purchaseStatus, payload?.message || 'No se ha podido guardar.', 'error');
     return;
@@ -751,7 +914,9 @@ el.newPurchaseBtn.addEventListener('click', openPurchaseModal);
 el.closePurchaseModalBtn.addEventListener('click', closePurchaseModal);
 el.cancelPurchaseBtn.addEventListener('click', closePurchaseModal);
 el.purchaseModal.querySelector('.modal-backdrop').addEventListener('click', closePurchaseModal);
-el.addMaterialRowBtn.addEventListener('click', addMaterialRow);
+el.addMaterialRowBtn.addEventListener('click', () => addMaterialRow());
+el.purchaseDestination.addEventListener('change', applyDestinationSuggestion);
+el.purchaseDestination.addEventListener('blur', applyDestinationSuggestion);
 
 show(el.loginView);
 initGoogleIdentity();

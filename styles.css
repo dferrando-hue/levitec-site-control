@@ -183,3 +183,48 @@ button{cursor:pointer}
   .purchase-summary{grid-template-columns:1fr 1fr 1fr}
   .purchase-card-body{grid-template-columns:1fr}
 }
+
+
+/* v0.3.1 - assisted purchasing */
+.advanced-fields{
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:#fafcfd;
+  overflow:hidden;
+}
+.advanced-fields summary{
+  cursor:pointer;
+  padding:12px 14px;
+  font-size:12px;
+  font-weight:900;
+  color:#445564;
+}
+.advanced-grid{
+  padding:0 14px 14px;
+}
+.purchase-form .helper-note{
+  color:var(--muted);
+  font-size:10px;
+  font-weight:500;
+}
+.btn[disabled]{
+  opacity:.6;
+  cursor:not-allowed;
+}
+.reuse-purchase-btn{
+  margin-left:auto;
+}
+.purchase-card-head-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+@media(max-width:520px){
+  .purchase-card-head{
+    flex-direction:column;
+  }
+  .purchase-card-head-actions{
+    width:100%;
+    justify-content:space-between;
+  }
+}

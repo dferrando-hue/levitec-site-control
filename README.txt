@@ -1,54 +1,56 @@
-LEVITEC SITE CONTROL v0.3.0
+LEVITEC SITE CONTROL v0.3.1
 =========================
 
-CAMBIOS PRINCIPALES
--------------------
-1. Administración de plataforma pasa a ser GLOBAL:
-   - visible desde "Mis proyectos"
-   - alta/edición/activación de proyectos
-   - ya no depende de entrar previamente en ZAZ081/ZAZ091/etc.
+MEJORAS DEL MODULO COMPRAS
+--------------------------
+- Protección contra doble envío:
+  * el botón queda deshabilitado mientras se crea la solicitud
+  * el backend usa CLIENT_REQUEST_ID e impide duplicados aunque llegue el POST dos veces
+- Formulario simplificado:
+  * Proveedor
+  * Fecha requerida
+  * Destino
+  * Materiales
+  * Observaciones
+- Datos adicionales quedan plegados:
+  * familia
+  * referencia de oferta
+  * dirección
+  * contacto
+- Autocomplete usando histórico:
+  * proveedores
+  * familias
+  * destinos
+  * referencias de material
+- Al introducir una referencia ya utilizada:
+  * rellena descripción
+  * último precio
+  * proveedor
+  * familia
+- Al elegir un destino conocido:
+  * rellena tipo
+  * dirección
+  * contacto
+  * familia si estaba vacía
+- Botón REUTILIZAR en cada solicitud para precargar una nueva.
 
-2. Dentro de cada proyecto aparece:
-   COMPRAS / ADMINISTRACIÓN
-   - solicitudes de pedido
-   - proveedor
-   - familia/imputación
-   - fecha requerida
-   - oferta/presupuesto (referencia o enlace)
-   - destino y dirección
-   - contacto en obra
-   - varias líneas de material
-   - observaciones
-   - estados de seguimiento
-
-3. El backend crea automáticamente la hoja:
-   SOLICITUDES_PEDIDO
-   la primera vez que se usa el módulo.
-
-PASOS DE INSTALACION
---------------------
+INSTALACION
+-----------
 APPS SCRIPT
-1. Sustituir TODO Código.gs por Code.gs.
+1. Sustituir Código.gs por Code.gs.
 2. Guardar.
 3. Ejecutar testUserAccess().
-4. Si es correcto:
-   Implementar > Gestionar implementaciones > Editar > Nueva versión.
-   Descripción:
-   CORE v0.6.0 - Global Admin + Purchases
+4. Desplegar nueva versión:
+   CORE v0.6.1 - Assisted Purchases + Idempotency
 
 GITHUB
-1. Reemplazar:
-   index.html
-   styles.css
-   app.js
-2. Commit recomendado:
-   Frontend v0.3.0 - Global Admin + Purchases
-3. Esperar GitHub Pages.
-4. Ctrl+F5 una vez.
+1. Reemplazar index.html, styles.css y app.js.
+2. Commit:
+   Frontend v0.3.1 - Assisted Purchases
+3. Esperar GitHub Pages y hacer Ctrl+F5.
 
-NOTA SOBRE ADJUNTOS
--------------------
-En esta primera versión, "Oferta / presupuesto" almacena una referencia,
-número de oferta o enlace. La subida directa de PDFs a Drive se añadirá
-en una iteración posterior para no mezclar todavía gestión documental
-con el primer flujo operativo de pedidos.
+MIGRACION
+---------
+No hay que tocar la hoja SOLICITUDES_PEDIDO.
+El backend añade automáticamente la nueva columna CLIENT_REQUEST_ID si falta.
+Las solicitudes antiguas siguen siendo válidas.

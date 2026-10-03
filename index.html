@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=0.3.0">
+  <link rel="stylesheet" href="styles.css?v=0.3.1">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -184,15 +184,13 @@
 
     <form id="purchaseForm" class="purchase-form">
 
+      <input type="hidden" id="purchaseClientRequestId">
+
       <div class="form-grid two">
         <label>
           <span>Proveedor *</span>
-          <input id="purchaseSupplier" type="text" placeholder="Ej. George Fischer" required>
-        </label>
-
-        <label>
-          <span>Familia / imputación</span>
-          <input id="purchaseFamily" type="text" placeholder="Ej. 208 Tubería">
+          <input id="purchaseSupplier" type="text" list="supplierSuggestions" placeholder="Ej. George Fischer" required>
+          <datalist id="supplierSuggestions"></datalist>
         </label>
 
         <label>
@@ -201,8 +199,9 @@
         </label>
 
         <label>
-          <span>Oferta / presupuesto</span>
-          <input id="purchaseQuoteRef" type="text" placeholder="Referencia, nº oferta o enlace">
+          <span>Destino</span>
+          <input id="purchaseDestination" type="text" list="destinationSuggestions" placeholder="Ej. Nave 9">
+          <datalist id="destinationSuggestions"></datalist>
         </label>
 
         <label>
@@ -214,41 +213,54 @@
             <option value="OTRO">Otro</option>
           </select>
         </label>
-
-        <label>
-          <span>Destino</span>
-          <input id="purchaseDestination" type="text" placeholder="Ej. Nave 10">
-        </label>
-
-        <label class="span-2">
-          <span>Dirección de entrega</span>
-          <input id="purchaseAddress" type="text" placeholder="Dirección completa">
-        </label>
-
-        <label class="span-2">
-          <span>Contacto en obra</span>
-          <input id="purchaseContact" type="text" placeholder="Nombre y teléfono">
-        </label>
       </div>
 
       <div class="form-section-head">
         <div>
           <strong>Materiales</strong>
-          <span>Una solicitud puede contener varias líneas.</span>
+          <span>Empieza por la referencia: si ya se usó antes, completaremos descripción y precio.</span>
         </div>
         <button id="addMaterialRowBtn" class="btn btn-secondary btn-sm" type="button">+ Añadir línea</button>
       </div>
 
       <div id="materialsRows" class="materials-rows"></div>
+      <datalist id="materialReferenceSuggestions"></datalist>
 
       <label>
         <span>Observaciones / instrucciones de pedido</span>
-        <textarea id="purchaseNotes" rows="5" placeholder="Sustituciones, notas al proveedor, condiciones especiales..."></textarea>
+        <textarea id="purchaseNotes" rows="4" placeholder="Sustituciones, notas al proveedor, condiciones especiales..."></textarea>
       </label>
+
+      <details class="advanced-fields">
+        <summary>Datos adicionales</summary>
+
+        <div class="form-grid two advanced-grid">
+          <label>
+            <span>Familia / imputación</span>
+            <input id="purchaseFamily" type="text" list="familySuggestions" placeholder="Ej. 208 Tubería">
+            <datalist id="familySuggestions"></datalist>
+          </label>
+
+          <label>
+            <span>Oferta / presupuesto</span>
+            <input id="purchaseQuoteRef" type="text" placeholder="Referencia, nº oferta o enlace">
+          </label>
+
+          <label class="span-2">
+            <span>Dirección de entrega</span>
+            <input id="purchaseAddress" type="text" placeholder="Se completa si ya conocemos el destino">
+          </label>
+
+          <label class="span-2">
+            <span>Contacto en obra</span>
+            <input id="purchaseContact" type="text" placeholder="Se completa si ya conocemos el destino">
+          </label>
+        </div>
+      </details>
 
       <div class="modal-actions">
         <button id="cancelPurchaseBtn" class="btn btn-secondary" type="button">Cancelar</button>
-        <button class="btn btn-primary" type="submit">Crear solicitud</button>
+        <button id="submitPurchaseBtn" class="btn btn-primary" type="submit">Crear solicitud</button>
       </div>
     </form>
   </div>
@@ -271,6 +283,6 @@ window.LEVITEC_CONFIG = {
 };
 </script>
 
-<script src="app.js?v=0.3.0"></script>
+<script src="app.js?v=0.3.1"></script>
 </body>
 </html>
