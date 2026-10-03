@@ -505,11 +505,11 @@ function openPurchases() {
 
   setStatus(el.purchaseStatus, 'Cargando solicitudes…');
 
+  // IMPORTANTE:
+  // El formulario oculto usa un único iframe como target.
+  // No debemos lanzar dos POST consecutivos porque el segundo
+  // puede cancelar la navegación/respuesta del primero.
   postToBackend('purchaseList', {
-    projectId: state.currentProject.id
-  });
-
-  postToBackend('purchaseSuggestions', {
     projectId: state.currentProject.id
   });
 }
@@ -624,6 +624,12 @@ function handlePurchaseList(payload) {
   clearStatus(el.purchaseStatus);
   renderPurchaseSummary();
   renderPurchases();
+
+  // Cargamos sugerencias SOLO después de haber recibido
+  // y pintado correctamente el listado.
+  postToBackend('purchaseSuggestions', {
+    projectId: state.currentProject.id
+  });
 }
 
 function renderPurchaseSummary() {

@@ -1,38 +1,34 @@
-LEVITEC SITE CONTROL v0.3.2
+LEVITEC SITE CONTROL v0.3.3
 =========================
 
-FIX CRITICO
------------
-En v0.3.1, si la hoja SOLICITUDES_PEDIDO ya existía, la columna
-CLIENT_REQUEST_ID se añadía al final de la hoja, pero las nuevas solicitudes
-se escribían por posición como si esa columna fuese la segunda.
+FIX PANEL DE SOLICITUDES
+------------------------
+La v0.3.2 lanzaba al abrir Compras dos POST consecutivos:
+- purchaseList
+- purchaseSuggestions
 
-Resultado:
-- la solicitud sí se guardaba,
-- pero PROYECTO_ID quedaba desplazado,
-- por eso la solicitud no aparecía en el panel del proyecto.
+Ambos usaban el mismo formulario y el mismo iframe oculto.
+El segundo POST podía cancelar la respuesta del primero, dejando
+la pantalla permanentemente en "Cargando solicitudes...".
 
-v0.3.2 corrige esto:
-- las nuevas solicitudes se escriben por NOMBRE DE CABECERA, nunca por posición;
-- el backend detecta y repara automáticamente las solicitudes mal alineadas
-  creadas con v0.3.1;
-- también existe repairPurchaseRequestsV031() por si quieres ejecutar la
-  reparación manualmente y ver cuántas filas se corrigieron.
+v0.3.3 serializa las peticiones:
+1. carga primero purchaseList;
+2. renderiza el panel;
+3. después solicita purchaseSuggestions.
 
-INSTALACION
------------
-APPS SCRIPT
-1. Sustituir TODO Código.gs por Code.gs.
-2. Guardar.
-3. Ejecutar testUserAccess().
-4. Opcional: ejecutar repairPurchaseRequestsV031().
-5. Desplegar nueva versión:
-   CORE v0.6.2 - Purchase schema fix
+BACKEND
+-------
+Se mantiene Code.gs v0.6.2. Si ya lo desplegaste correctamente,
+no necesitas volver a desplegar Apps Script.
 
 GITHUB
-1. Reemplazar index.html, styles.css y app.js.
-2. Commit:
-   Frontend v0.3.2 - Purchase schema fix
-3. Ctrl+F5.
+------
+Reemplazar:
+- index.html
+- app.js
+- styles.css
 
-No hay que borrar la hoja SOLICITUDES_PEDIDO.
+Commit:
+Frontend v0.3.3 - Sequential purchase loading
+
+Después Ctrl+F5.
