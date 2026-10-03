@@ -6,132 +6,271 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=0.2.2">
+  <link rel="stylesheet" href="styles.css?v=0.3.0">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
-  <div class="app-shell">
-    <header class="topbar">
-      <div class="brand">
-        <div class="brand-mark">L</div>
-        <div>
-          <div class="brand-title">LEVITEC SITE CONTROL</div>
-          <div class="brand-subtitle">Digital Site Management</div>
-        </div>
-      </div>
-      <div id="topUser" class="top-user hidden">
-        <div class="top-user-text">
-          <strong id="topUserName"></strong>
-          <span id="topUserMeta"></span>
-        </div>
-        <button id="logoutBtn" class="btn btn-secondary btn-sm">Cerrar sesión</button>
-      </div>
-    </header>
 
-    <main class="main">
-      <section id="loginView" class="view login-view">
-        <div class="login-card">
-          <div class="login-badge">SITE CONTROL</div>
-          <h1>Gestión operativa de obra</h1>
-          <p>Accede con tu cuenta autorizada para consultar proyectos, operaciones, maquinaria, almacenes, entregas y permisos.</p>
-          <div id="googleButton" class="google-button-wrap"></div>
-          <div id="loginStatus" class="status hidden"></div>
-          <div class="login-note">El acceso y los módulos disponibles dependen del rol y permisos del usuario.</div>
-        </div>
-      </section>
-
-      <section id="projectsView" class="view hidden">
-        <div class="page-heading">
-          <div>
-            <div class="eyebrow">LEVITEC SITE CONTROL</div>
-            <h1>Mis proyectos</h1>
-            <p id="welcomeText" class="muted"></p>
-          </div>
-        </div>
-        <div id="projectsGrid" class="projects-grid"></div>
-        <div id="noProjects" class="empty-state hidden">
-          <h3>No tienes proyectos asignados</h3>
-          <p>Tu usuario está autorizado, pero no tiene ningún proyecto activo asociado.</p>
-        </div>
-      </section>
-
-      <section id="projectView" class="view hidden">
-        <div class="project-toolbar">
-          <button id="backProjectsBtn" class="btn btn-secondary">← Proyectos</button>
-          <div class="project-current">
-            <span class="muted">Proyecto actual</span>
-            <strong id="currentProjectName"></strong>
-            <span id="currentProjectMeta"></span>
-          </div>
-        </div>
-
-        <div class="project-hero">
-          <div>
-            <div class="eyebrow">SITE CONTROL</div>
-            <h1 id="heroProjectName"></h1>
-            <p id="heroProjectSubtitle"></p>
-          </div>
-          <div class="hero-role" id="heroProjectRole"></div>
-        </div>
-
-        <div id="modulesGrid" class="modules-grid"></div>
-      </section>
-
-      <section id="adminProjectsView" class="view hidden">
-        <div class="section-toolbar">
-          <button id="backProjectHomeBtn" class="btn btn-secondary" type="button">← Volver</button>
-          <div>
-            <div class="eyebrow">ADMINISTRACIÓN</div>
-            <h1>Proyectos</h1>
-            <p class="muted">Alta, edición y activación de proyectos.</p>
-          </div>
-          <button id="newProjectBtn" class="btn btn-primary" type="button">+ Nuevo proyecto</button>
-        </div>
-        <div id="adminProjectStatus" class="status hidden"></div>
-        <div id="adminProjectsList" class="admin-projects-list"></div>
-      </section>
-    </main>
-
-    <footer class="footer">LEVITEC SITE CONTROL · v0.2.2</footer>
-  </div>
-
-
-  <div id="projectModal" class="modal hidden">
-    <div class="modal-backdrop"></div>
-    <div class="modal-card">
-      <div class="modal-head">
-        <div><div class="eyebrow">ADMINISTRACIÓN</div><h2 id="projectModalTitle">Nuevo proyecto</h2></div>
-        <button id="closeProjectModalBtn" class="icon-btn" type="button">×</button>
-      </div>
-      <form id="projectForm">
-        <input type="hidden" id="projectFormMode" value="create">
-        <label>ID proyecto<input id="projectIdInput" type="text" placeholder="Ej. ZAZ172" autocomplete="off" required></label>
-        <label>Nombre<input id="projectNameInput" type="text" placeholder="Ej. ZAZ172" autocomplete="off"></label>
-        <label>Campus<input id="projectCampusInput" type="text" placeholder="Ej. HUESCA" autocomplete="off"></label>
-        <label class="check-row"><input id="projectActiveInput" type="checkbox" checked> Proyecto activo</label>
-        <div class="modal-actions">
-          <button id="cancelProjectBtn" class="btn btn-secondary" type="button">Cancelar</button>
-          <button class="btn btn-primary" type="submit">Guardar</button>
-        </div>
-      </form>
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark">L</div>
+    <div>
+      <div class="brand-title">LEVITEC SITE CONTROL</div>
+      <div class="brand-subtitle">Digital Site Management</div>
     </div>
   </div>
 
-  <iframe name="backendFrame" id="backendFrame" class="hidden-frame"></iframe>
+  <div id="topUser" class="top-user hidden">
+    <div class="top-user-text">
+      <strong id="topUserName"></strong>
+      <span id="topUserMeta"></span>
+    </div>
+    <button id="logoutBtn" class="btn btn-secondary btn-sm" type="button">Cerrar sesión</button>
+  </div>
+</header>
 
-  <form id="backendForm" method="post" target="backendFrame" action="https://script.google.com/macros/s/AKfycbwtfMhFPG7unUBRTSfT4A6TKzd0o5baXB9QOFEndL56SFIsCcZlQ6o_M5PUfbmVNG26/exec" class="hidden">
-    <input type="hidden" name="action" id="backendAction">
-    <input type="hidden" name="credential" id="backendCredential">
-    <input type="hidden" name="payload" id="backendPayload">
-  </form>
+<main class="main">
 
-  <script>
-    window.LEVITEC_CONFIG = {
-      GOOGLE_CLIENT_ID: "125715939878-v29u8atv0k8g6smekk6lfuhrtqob4c1b.apps.googleusercontent.com",
-      BACKEND_WEBAPP_URL: "https://script.google.com/macros/s/AKfycbwtfMhFPG7unUBRTSfT4A6TKzd0o5baXB9QOFEndL56SFIsCcZlQ6o_M5PUfbmVNG26/exec",
-      MESSAGE_SOURCE: "LEVITEC_SITE_CONTROL"
-    };
-  </script>
-  <script src="app.js?v=0.2.2"></script>
+  <section id="loginView" class="view login-view">
+    <div class="login-card">
+      <div class="eyebrow">SITE CONTROL</div>
+      <h1>Gestión operativa de obra</h1>
+      <p>Accede con tu cuenta autorizada para consultar proyectos, operaciones, maquinaria, almacenes, entregas y permisos.</p>
+      <div id="googleButton"></div>
+      <div id="loginStatus" class="status hidden"></div>
+    </div>
+  </section>
+
+
+  <section id="projectsView" class="view hidden">
+    <div class="projects-head">
+      <div>
+        <div class="eyebrow">LEVITEC SITE CONTROL</div>
+        <h1>Mis proyectos</h1>
+        <p id="welcomeText" class="muted"></p>
+      </div>
+
+      <button id="globalAdminBtn" class="btn btn-secondary hidden" type="button">
+        Administración de plataforma
+      </button>
+    </div>
+
+    <div id="projectsGrid" class="projects-grid"></div>
+
+    <div id="noProjects" class="empty-state hidden">
+      <h3>No tienes proyectos asignados</h3>
+      <p>Tu usuario está autorizado, pero no tiene proyectos activos.</p>
+    </div>
+  </section>
+
+
+  <section id="projectView" class="view hidden">
+    <div class="project-toolbar">
+      <button id="backProjectsBtn" class="btn btn-secondary" type="button">← Proyectos</button>
+      <div class="project-current">
+        <span>PROYECTO ACTUAL</span>
+        <strong id="currentProjectName"></strong>
+        <small id="currentProjectMeta"></small>
+      </div>
+    </div>
+
+    <div class="project-hero">
+      <div>
+        <div class="eyebrow">SITE CONTROL</div>
+        <h1 id="heroProjectName"></h1>
+        <p id="heroProjectSubtitle"></p>
+      </div>
+      <div id="heroProjectRole" class="hero-role"></div>
+    </div>
+
+    <div id="modulesGrid" class="modules-grid"></div>
+  </section>
+
+
+  <section id="globalAdminView" class="view hidden">
+    <div class="section-toolbar">
+      <button id="backFromGlobalAdminBtn" class="btn btn-secondary" type="button">← Mis proyectos</button>
+      <div>
+        <div class="eyebrow">ADMINISTRACIÓN DE PLATAFORMA</div>
+        <h1>Proyectos</h1>
+        <p class="muted">Alta, edición y activación de proyectos de la plataforma.</p>
+      </div>
+      <button id="newProjectBtn" class="btn btn-primary" type="button">+ Nuevo proyecto</button>
+    </div>
+
+    <div id="adminProjectStatus" class="status hidden"></div>
+    <div id="adminProjectsList" class="admin-projects-list"></div>
+  </section>
+
+
+  <section id="purchasesView" class="view hidden">
+    <div class="section-toolbar">
+      <button id="backFromPurchasesBtn" class="btn btn-secondary" type="button">← Proyecto</button>
+      <div>
+        <div class="eyebrow">COMPRAS / ADMINISTRACIÓN</div>
+        <h1>Solicitudes de pedido</h1>
+        <p id="purchasesProjectSubtitle" class="muted"></p>
+      </div>
+      <button id="newPurchaseBtn" class="btn btn-primary" type="button">+ Solicitar pedido</button>
+    </div>
+
+    <div class="purchase-summary">
+      <div><span>TOTAL</span><strong id="purchaseCountTotal">0</strong></div>
+      <div><span>PENDIENTES</span><strong id="purchaseCountPending">0</strong></div>
+      <div><span>EMITIDOS</span><strong id="purchaseCountIssued">0</strong></div>
+    </div>
+
+    <div id="purchaseStatus" class="status hidden"></div>
+    <div id="purchaseList" class="purchase-list"></div>
+  </section>
+
+</main>
+
+
+<div id="projectModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">ADMINISTRACIÓN DE PLATAFORMA</div>
+        <h2 id="projectModalTitle">Nuevo proyecto</h2>
+      </div>
+      <button id="closeProjectModalBtn" class="icon-btn" type="button">×</button>
+    </div>
+
+    <form id="projectForm" class="stack-form">
+      <input type="hidden" id="projectFormMode" value="create">
+
+      <label>
+        <span>ID del proyecto</span>
+        <input id="projectIdInput" type="text" placeholder="Ej. ZAZ172" required>
+      </label>
+
+      <label>
+        <span>Nombre</span>
+        <input id="projectNameInput" type="text" placeholder="Ej. ZAZ172">
+      </label>
+
+      <label>
+        <span>Campus</span>
+        <input id="projectCampusInput" type="text" placeholder="Ej. HUESCA">
+      </label>
+
+      <label class="check-row">
+        <input id="projectActiveInput" type="checkbox" checked>
+        <span>Proyecto activo</span>
+      </label>
+
+      <div class="modal-actions">
+        <button id="cancelProjectBtn" class="btn btn-secondary" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<div id="purchaseModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-card modal-wide">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">COMPRAS / ADMINISTRACIÓN</div>
+        <h2>Nueva solicitud de pedido</h2>
+        <p id="purchaseModalProject" class="muted modal-sub"></p>
+      </div>
+      <button id="closePurchaseModalBtn" class="icon-btn" type="button">×</button>
+    </div>
+
+    <form id="purchaseForm" class="purchase-form">
+
+      <div class="form-grid two">
+        <label>
+          <span>Proveedor *</span>
+          <input id="purchaseSupplier" type="text" placeholder="Ej. George Fischer" required>
+        </label>
+
+        <label>
+          <span>Familia / imputación</span>
+          <input id="purchaseFamily" type="text" placeholder="Ej. 208 Tubería">
+        </label>
+
+        <label>
+          <span>Fecha requerida *</span>
+          <input id="purchaseRequiredDate" type="date" required>
+        </label>
+
+        <label>
+          <span>Oferta / presupuesto</span>
+          <input id="purchaseQuoteRef" type="text" placeholder="Referencia, nº oferta o enlace">
+        </label>
+
+        <label>
+          <span>Tipo de destino</span>
+          <select id="purchaseDestinationType">
+            <option value="ALMACEN">Almacén</option>
+            <option value="CAMPA">Campa</option>
+            <option value="OBRA">Obra</option>
+            <option value="OTRO">Otro</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Destino</span>
+          <input id="purchaseDestination" type="text" placeholder="Ej. Nave 10">
+        </label>
+
+        <label class="span-2">
+          <span>Dirección de entrega</span>
+          <input id="purchaseAddress" type="text" placeholder="Dirección completa">
+        </label>
+
+        <label class="span-2">
+          <span>Contacto en obra</span>
+          <input id="purchaseContact" type="text" placeholder="Nombre y teléfono">
+        </label>
+      </div>
+
+      <div class="form-section-head">
+        <div>
+          <strong>Materiales</strong>
+          <span>Una solicitud puede contener varias líneas.</span>
+        </div>
+        <button id="addMaterialRowBtn" class="btn btn-secondary btn-sm" type="button">+ Añadir línea</button>
+      </div>
+
+      <div id="materialsRows" class="materials-rows"></div>
+
+      <label>
+        <span>Observaciones / instrucciones de pedido</span>
+        <textarea id="purchaseNotes" rows="5" placeholder="Sustituciones, notas al proveedor, condiciones especiales..."></textarea>
+      </label>
+
+      <div class="modal-actions">
+        <button id="cancelPurchaseBtn" class="btn btn-secondary" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Crear solicitud</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<iframe name="backendFrame" id="backendFrame" class="hidden-frame"></iframe>
+
+<form id="backendForm" method="post" target="backendFrame" action="https://script.google.com/macros/s/AKfycbwtfMhFPG7unUBRTSfT4A6TKzd0o5baXB9QOFEndL56SFIsCcZlQ6o_M5PUfbmVNG26/exec" class="hidden">
+  <input type="hidden" name="action" id="backendAction">
+  <input type="hidden" name="credential" id="backendCredential">
+  <input type="hidden" name="payload" id="backendPayload">
+</form>
+
+<script>
+window.LEVITEC_CONFIG = {
+  GOOGLE_CLIENT_ID: "125715939878-v29u8atv0k8g6smekk6lfuhrtqob4c1b.apps.googleusercontent.com",
+  BACKEND_WEBAPP_URL: "https://script.google.com/macros/s/AKfycbwtfMhFPG7unUBRTSfT4A6TKzd0o5baXB9QOFEndL56SFIsCcZlQ6o_M5PUfbmVNG26/exec",
+  MESSAGE_SOURCE: "LEVITEC_SITE_CONTROL"
+};
+</script>
+
+<script src="app.js?v=0.3.0"></script>
 </body>
 </html>

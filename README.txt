@@ -1,27 +1,54 @@
-LEVITEC SITE CONTROL v0.2.1
-===========================
+LEVITEC SITE CONTROL v0.3.0
+=========================
 
-CORRECCION FRONTEND
+CAMBIOS PRINCIPALES
 -------------------
-- Administración tiene ahora botón visible "Abrir administración".
-- La tarjeta completa también es clicable y accesible por teclado.
-- Se añade cache busting ?v=0.2.1 para evitar que GitHub/Chrome use app.js o styles.css antiguos.
-- Administración > Proyectos mantiene: listar, crear, editar y activar/desactivar proyectos.
+1. Administración de plataforma pasa a ser GLOBAL:
+   - visible desde "Mis proyectos"
+   - alta/edición/activación de proyectos
+   - ya no depende de entrar previamente en ZAZ081/ZAZ091/etc.
+
+2. Dentro de cada proyecto aparece:
+   COMPRAS / ADMINISTRACIÓN
+   - solicitudes de pedido
+   - proveedor
+   - familia/imputación
+   - fecha requerida
+   - oferta/presupuesto (referencia o enlace)
+   - destino y dirección
+   - contacto en obra
+   - varias líneas de material
+   - observaciones
+   - estados de seguimiento
+
+3. El backend crea automáticamente la hoja:
+   SOLICITUDES_PEDIDO
+   la primera vez que se usa el módulo.
+
+PASOS DE INSTALACION
+--------------------
+APPS SCRIPT
+1. Sustituir TODO Código.gs por Code.gs.
+2. Guardar.
+3. Ejecutar testUserAccess().
+4. Si es correcto:
+   Implementar > Gestionar implementaciones > Editar > Nueva versión.
+   Descripción:
+   CORE v0.6.0 - Global Admin + Purchases
 
 GITHUB
-------
-Sustituir en la raíz del repositorio:
-- index.html
-- app.js
-- styles.css
+1. Reemplazar:
+   index.html
+   styles.css
+   app.js
+2. Commit recomendado:
+   Frontend v0.3.0 - Global Admin + Purchases
+3. Esperar GitHub Pages.
+4. Ctrl+F5 una vez.
 
-No es necesario borrar el historial de GitHub. Subir los nuevos archivos con el mismo nombre crea un nuevo commit y conserva las versiones anteriores para rollback.
-
-APPS SCRIPT
------------
-Code.gs es el mismo backend v0.5.0. Si ya está desplegado y funciona, NO hace falta volver a sustituirlo ni desplegarlo.
-
-
-v0.2.2 FIX
-----------
-Corregido app.js: la v0.2.1 contenía saltos de línea escapados literalmente y el navegador no podía ejecutar JavaScript. Esto impedía renderizar el botón de Google Login.
+NOTA SOBRE ADJUNTOS
+-------------------
+En esta primera versión, "Oferta / presupuesto" almacena una referencia,
+número de oferta o enlace. La subida directa de PDFs a Drive se añadirá
+en una iteración posterior para no mezclar todavía gestión documental
+con el primer flujo operativo de pedidos.
