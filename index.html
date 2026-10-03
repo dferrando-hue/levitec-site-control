@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=0.3.3">
+  <link rel="stylesheet" href="styles.css?v=0.3.5">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -267,6 +267,97 @@
 </div>
 
 
+
+<div id="purchaseWorkflowModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+
+  <div class="modal-card modal-wide">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">TRAMITACIÓN DE PEDIDO</div>
+        <h2 id="workflowRequestId">Solicitud</h2>
+        <p id="workflowRequestMeta" class="muted modal-sub"></p>
+      </div>
+
+      <button id="closeWorkflowModalBtn" class="icon-btn" type="button">×</button>
+    </div>
+
+    <div class="workflow-layout">
+
+      <section class="workflow-request">
+        <div class="workflow-highlight-grid">
+          <div class="workflow-highlight">
+            <span>Proveedor</span>
+            <strong id="workflowSupplier"></strong>
+          </div>
+
+          <div class="workflow-highlight family-highlight">
+            <span>Familia / imputación</span>
+            <strong id="workflowFamilyDisplay"></strong>
+          </div>
+
+          <div class="workflow-highlight">
+            <span>Fecha requerida</span>
+            <strong id="workflowRequiredDate"></strong>
+          </div>
+
+          <div class="workflow-highlight">
+            <span>Destino</span>
+            <strong id="workflowDestination"></strong>
+          </div>
+        </div>
+
+        <div id="workflowMaterials" class="workflow-materials"></div>
+
+        <div class="workflow-notes-block">
+          <span>Observaciones</span>
+          <div id="workflowNotes"></div>
+        </div>
+      </section>
+
+      <section class="workflow-admin-panel">
+        <div class="eyebrow">ADMINISTRACIÓN</div>
+
+        <label>
+          <span>Familia / imputación *</span>
+          <input id="workflowFamilyInput" type="text" placeholder="Ej. 208 Tubería">
+        </label>
+
+        <label>
+          <span>Estado</span>
+          <select id="workflowStatusInput">
+            <option value="PENDIENTE_ADMINISTRACION">Pendiente administración</option>
+            <option value="EN_TRAMITACION">En tramitación</option>
+            <option value="PEDIDO_EMITIDO">Pedido emitido</option>
+            <option value="CONFIRMADO_PROVEEDOR">Confirmado proveedor</option>
+            <option value="CANCELADO">Cancelado</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Nº PO / Sage</span>
+          <input id="workflowPoInput" type="text" placeholder="Ej. PCLVTC26-08498">
+        </label>
+
+        <label>
+          <span>Fecha prevista de entrega</span>
+          <input id="workflowExpectedDateInput" type="date">
+        </label>
+
+        <div class="workflow-help">
+          Para emitir el pedido son obligatorios <strong>familia</strong> y <strong>PO/Sage</strong>.
+          Para marcarlo como confirmado por proveedor, también se exige la fecha prevista de entrega.
+        </div>
+
+        <button id="saveWorkflowBtn" class="btn btn-primary workflow-save" type="button">
+          Guardar tramitación
+        </button>
+      </section>
+
+    </div>
+  </div>
+</div>
+
 <iframe name="backendFrame" id="backendFrame" class="hidden-frame"></iframe>
 
 <form id="backendForm" method="post" target="backendFrame" action="https://script.google.com/macros/s/AKfycbwtfMhFPG7unUBRTSfT4A6TKzd0o5baXB9QOFEndL56SFIsCcZlQ6o_M5PUfbmVNG26/exec" class="hidden">
@@ -283,6 +374,6 @@ window.LEVITEC_CONFIG = {
 };
 </script>
 
-<script src="app.js?v=0.3.3"></script>
+<script src="app.js?v=0.3.5"></script>
 </body>
 </html>

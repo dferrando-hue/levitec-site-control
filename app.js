@@ -1059,6 +1059,11 @@ function esc(value) {
 }
 
 
+// Start Google login before wiring the rest of the UI.
+// This makes the login screen resilient to any later module-specific runtime error.
+show(el.loginView);
+initGoogleIdentity();
+
 /* EVENTS */
 el.logoutBtn.addEventListener('click', logout);
 el.backProjectsBtn.addEventListener('click', () => show(el.projectsView));
@@ -1083,8 +1088,5 @@ el.purchaseWorkflowModal
   .querySelector('.modal-backdrop')
   .addEventListener('click', closePurchaseWorkflow);
 el.saveWorkflowBtn.addEventListener('click', savePurchaseWorkflow);
-
-show(el.loginView);
-initGoogleIdentity();
 
 })();
