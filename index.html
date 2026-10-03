@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#007c7a">
+  <title>LEVITEC SITE CONTROL</title>
+  <link rel="preconnect" href="https://accounts.google.com">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">L</div>
+        <div>
+          <div class="brand-title">LEVITEC SITE CONTROL</div>
+          <div class="brand-subtitle">Digital Site Management</div>
+        </div>
+      </div>
+      <div id="topUser" class="top-user hidden">
+        <div class="top-user-text">
+          <strong id="topUserName"></strong>
+          <span id="topUserMeta"></span>
+        </div>
+        <button id="logoutBtn" class="btn btn-secondary btn-sm">Cerrar sesión</button>
+      </div>
+    </header>
+
+    <main class="main">
+      <section id="loginView" class="view login-view">
+        <div class="login-card">
+          <div class="login-badge">SITE CONTROL</div>
+          <h1>Gestión operativa de obra</h1>
+          <p>Accede con tu cuenta autorizada para consultar proyectos, operaciones, maquinaria, almacenes, entregas y permisos.</p>
+          <div id="googleButton" class="google-button-wrap"></div>
+          <div id="loginStatus" class="status hidden"></div>
+          <div class="login-note">El acceso y los módulos disponibles dependen del rol y permisos del usuario.</div>
+        </div>
+      </section>
+
+      <section id="projectsView" class="view hidden">
+        <div class="page-heading">
+          <div>
+            <div class="eyebrow">LEVITEC SITE CONTROL</div>
+            <h1>Mis proyectos</h1>
+            <p id="welcomeText" class="muted"></p>
+          </div>
+        </div>
+        <div id="projectsGrid" class="projects-grid"></div>
+        <div id="noProjects" class="empty-state hidden">
+          <h3>No tienes proyectos asignados</h3>
+          <p>Tu usuario está autorizado, pero no tiene ningún proyecto activo asociado.</p>
+        </div>
+      </section>
+
+      <section id="projectView" class="view hidden">
+        <div class="project-toolbar">
+          <button id="backProjectsBtn" class="btn btn-secondary">← Proyectos</button>
+          <div class="project-current">
+            <span class="muted">Proyecto actual</span>
+            <strong id="currentProjectName"></strong>
+            <span id="currentProjectMeta"></span>
+          </div>
+        </div>
+
+        <div class="project-hero">
+          <div>
+            <div class="eyebrow">SITE CONTROL</div>
+            <h1 id="heroProjectName"></h1>
+            <p id="heroProjectSubtitle"></p>
+          </div>
+          <div class="hero-role" id="heroProjectRole"></div>
+        </div>
+
+        <div id="modulesGrid" class="modules-grid"></div>
+      </section>
+    </main>
+
+    <footer class="footer">LEVITEC SITE CONTROL · v0.1</footer>
+  </div>
+
+  <iframe name="backendFrame" id="backendFrame" class="hidden-frame"></iframe>
+
+  <form id="backendForm" method="post" target="backendFrame" action="https://script.google.com/macros/s/AKfycbwtfMhFPG7unUBRTSfT4A6TKzd0o5baXB9QOFEndL56SFIsCcZlQ6o_M5PUfbmVNG26/exec" class="hidden">
+    <input type="hidden" name="action" id="backendAction">
+    <input type="hidden" name="credential" id="backendCredential">
+  </form>
+
+  <script>
+    window.LEVITEC_CONFIG = {
+      GOOGLE_CLIENT_ID: "125715939878-v29u8atv0k8g6smekk6lfuhrtqob4c1b.apps.googleusercontent.com",
+      BACKEND_WEBAPP_URL: "https://script.google.com/macros/s/AKfycbwtfMhFPG7unUBRTSfT4A6TKzd0o5baXB9QOFEndL56SFIsCcZlQ6o_M5PUfbmVNG26/exec",
+      MESSAGE_SOURCE: "LEVITEC_SITE_CONTROL"
+    };
+  </script>
+  <script src="app.js"></script>
+</body>
+</html>
