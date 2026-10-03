@@ -1,10 +1,22 @@
-LEVITEC SITE CONTROL v0.2
+LEVITEC SITE CONTROL v0.2.1
+===========================
 
-1) Sustituir Code.gs completo.
-2) Guardar y ejecutar testUserAccess().
-3) Implementar una NUEVA VERSION: CORE v0.5.0 - Admin Projects.
-4) Sustituir en GitHub index.html, styles.css y app.js.
-5) Recargar Site Control.
-6) Abrir un proyecto > Administración.
+CORRECCION FRONTEND
+-------------------
+- Administración tiene ahora botón visible "Abrir administración".
+- La tarjeta completa también es clicable y accesible por teclado.
+- Se añade cache busting ?v=0.2.1 para evitar que GitHub/Chrome use app.js o styles.css antiguos.
+- Administración > Proyectos mantiene: listar, crear, editar y activar/desactivar proyectos.
 
-Permite listar, crear, editar y activar/desactivar proyectos.
+GITHUB
+------
+Sustituir en la raíz del repositorio:
+- index.html
+- app.js
+- styles.css
+
+No es necesario borrar el historial de GitHub. Subir los nuevos archivos con el mismo nombre crea un nuevo commit y conserva las versiones anteriores para rollback.
+
+APPS SCRIPT
+-----------
+Code.gs es el mismo backend v0.5.0. Si ya está desplegado y funciona, NO hace falta volver a sustituirlo ni desplegarlo.
