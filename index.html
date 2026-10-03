@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=0.3.6">
+  <link rel="stylesheet" href="styles.css?v=0.4.0">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -87,7 +87,48 @@
   </section>
 
 
-  <section id="globalAdminView" class="view hidden">
+  <section id="deliveriesView" class="view hidden">
+  <div class="section-toolbar deliveries-toolbar">
+    <button id="backFromDeliveriesBtn" class="btn btn-secondary" type="button">← Proyecto</button>
+    <div>
+      <div class="eyebrow">DELIVERIES</div>
+      <h1>Calendario de entregas</h1>
+      <p id="deliveriesProjectSubtitle" class="muted"></p>
+    </div>
+    <div class="calendar-nav">
+      <button id="prevMonthBtn" class="btn btn-secondary" type="button">←</button>
+      <strong id="calendarMonthLabel"></strong>
+      <button id="nextMonthBtn" class="btn btn-secondary" type="button">→</button>
+      <button id="todayMonthBtn" class="btn btn-secondary" type="button">Hoy</button>
+    </div>
+  </div>
+
+  <div class="delivery-summary">
+    <div><span>PRÓXIMAS</span><strong id="deliveryUpcomingCount">0</strong></div>
+    <div><span>RETRASADAS</span><strong id="deliveryLateCount">0</strong></div>
+    <div><span>RECIBIDAS</span><strong id="deliveryReceivedCount">0</strong></div>
+  </div>
+
+  <div id="deliveryStatus" class="status hidden"></div>
+
+  <div class="calendar-shell">
+    <div id="deliveryCalendar" class="delivery-calendar"></div>
+  </div>
+
+  <div class="delivery-list-head">
+    <h2>Entregas del proyecto</h2>
+    <div class="delivery-filters">
+      <button class="delivery-filter active" data-filter="ALL" type="button">Todas</button>
+      <button class="delivery-filter" data-filter="UPCOMING" type="button">Próximas</button>
+      <button class="delivery-filter" data-filter="LATE" type="button">Retrasadas</button>
+      <button class="delivery-filter" data-filter="RECEIVED" type="button">Recibidas</button>
+    </div>
+  </div>
+
+  <div id="deliveryList" class="delivery-list"></div>
+</section>
+
+<section id="globalAdminView" class="view hidden">
     <div class="section-toolbar">
       <button id="backFromGlobalAdminBtn" class="btn btn-secondary" type="button">← Mis proyectos</button>
       <div>
@@ -358,6 +399,54 @@
   </div>
 </div>
 
+<div id="deliveryModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-card modal-wide">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">DELIVERY</div>
+        <h2 id="deliveryModalTitle">Entrega</h2>
+        <p id="deliveryModalMeta" class="muted modal-sub"></p>
+      </div>
+      <button id="closeDeliveryModalBtn" class="icon-btn" type="button">×</button>
+    </div>
+
+    <div class="delivery-modal-grid">
+      <section>
+        <div class="workflow-highlight-grid">
+          <div class="workflow-highlight"><span>Proveedor</span><strong id="deliverySupplier"></strong></div>
+          <div class="workflow-highlight"><span>PO / Sage</span><strong id="deliveryPo"></strong></div>
+          <div class="workflow-highlight family-highlight"><span>Familia</span><strong id="deliveryFamily"></strong></div>
+          <div class="workflow-highlight"><span>Destino</span><strong id="deliveryDestination"></strong></div>
+        </div>
+        <div id="deliveryMaterials" class="workflow-materials"></div>
+      </section>
+
+      <section class="delivery-actions-panel">
+        <div class="delivery-action-block">
+          <div class="eyebrow">REPROGRAMAR</div>
+          <label><span>Fecha prevista de entrega</span><input id="deliveryDateInput" type="date"></label>
+          <label><span>Motivo del cambio</span><textarea id="deliveryChangeReason" rows="3" placeholder="Ej. ajuste con proveedor por secuencia de obra"></textarea></label>
+          <button id="saveDeliveryDateBtn" class="btn btn-primary" type="button">Actualizar fecha</button>
+        </div>
+
+        <div class="delivery-action-block">
+          <div class="eyebrow">RECEPCIÓN</div>
+          <label>
+            <span>Estado de recepción</span>
+            <select id="deliveryReceiptStatus">
+              <option value="COMPLETA">Completa</option>
+              <option value="PARCIAL">Parcial</option>
+            </select>
+          </label>
+          <label><span>Observaciones</span><textarea id="deliveryReceiptNotes" rows="3" placeholder="Material pendiente, daños, discrepancias..."></textarea></label>
+          <button id="confirmDeliveryReceiptBtn" class="btn btn-secondary" type="button">Confirmar recepción</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
 <iframe name="backendFrame" id="backendFrame" class="hidden-frame"></iframe>
 
 <form id="backendForm" method="post" target="backendFrame" action="https://script.google.com/macros/s/AKfycbwtfMhFPG7unUBRTSfT4A6TKzd0o5baXB9QOFEndL56SFIsCcZlQ6o_M5PUfbmVNG26/exec" class="hidden">
@@ -374,6 +463,6 @@ window.LEVITEC_CONFIG = {
 };
 </script>
 
-<script src="app.js?v=0.3.6"></script>
+<script src="app.js?v=0.4.0"></script>
 </body>
 </html>

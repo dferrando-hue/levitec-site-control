@@ -17,7 +17,12 @@ const state = {
   },
   purchaseSubmitting: false,
   workflowRequest: null,
-  workflowSubmitting: false
+  workflowSubmitting: false,
+  deliveries: [],
+  deliveryFilter: 'ALL',
+  deliveryCalendarDate: new Date(),
+  selectedDelivery: null,
+  deliverySubmitting: false
 };
 
 const $ = id => document.getElementById(id);
@@ -28,6 +33,7 @@ const el = {
   projectView: $('projectView'),
   globalAdminView: $('globalAdminView'),
   purchasesView: $('purchasesView'),
+  deliveriesView: $('deliveriesView'),
 
   googleButton: $('googleButton'),
   loginStatus: $('loginStatus'),
@@ -114,6 +120,35 @@ const el = {
   workflowExpectedDateInput: $('workflowExpectedDateInput'),
   saveWorkflowBtn: $('saveWorkflowBtn'),
 
+  backFromDeliveriesBtn: $('backFromDeliveriesBtn'),
+  deliveriesProjectSubtitle: $('deliveriesProjectSubtitle'),
+  prevMonthBtn: $('prevMonthBtn'),
+  nextMonthBtn: $('nextMonthBtn'),
+  todayMonthBtn: $('todayMonthBtn'),
+  calendarMonthLabel: $('calendarMonthLabel'),
+  deliveryCalendar: $('deliveryCalendar'),
+  deliveryStatus: $('deliveryStatus'),
+  deliveryUpcomingCount: $('deliveryUpcomingCount'),
+  deliveryLateCount: $('deliveryLateCount'),
+  deliveryReceivedCount: $('deliveryReceivedCount'),
+  deliveryList: $('deliveryList'),
+
+  deliveryModal: $('deliveryModal'),
+  closeDeliveryModalBtn: $('closeDeliveryModalBtn'),
+  deliveryModalTitle: $('deliveryModalTitle'),
+  deliveryModalMeta: $('deliveryModalMeta'),
+  deliverySupplier: $('deliverySupplier'),
+  deliveryPo: $('deliveryPo'),
+  deliveryFamily: $('deliveryFamily'),
+  deliveryDestination: $('deliveryDestination'),
+  deliveryMaterials: $('deliveryMaterials'),
+  deliveryDateInput: $('deliveryDateInput'),
+  deliveryChangeReason: $('deliveryChangeReason'),
+  saveDeliveryDateBtn: $('saveDeliveryDateBtn'),
+  deliveryReceiptStatus: $('deliveryReceiptStatus'),
+  deliveryReceiptNotes: $('deliveryReceiptNotes'),
+  confirmDeliveryReceiptBtn: $('confirmDeliveryReceiptBtn'),
+
   backendForm: $('backendForm'),
   backendAction: $('backendAction'),
   backendCredential: $('backendCredential'),
@@ -153,7 +188,8 @@ function show(view) {
     el.projectsView,
     el.projectView,
     el.globalAdminView,
-    el.purchasesView
+    el.purchasesView,
+    el.deliveriesView
   ].forEach(v => v.classList.add('hidden'));
 
   view.classList.remove('hidden');
@@ -256,6 +292,15 @@ window.addEventListener('message', event => {
       handlePurchaseMutation(msg.payload);
       break;
 
+    case 'deliveryList':
+      handleDeliveryList(msg.payload);
+      break;
+
+    case 'deliveryUpdateDate':
+    case 'deliveryConfirmReceipt':
+      handleDeliveryMutation(msg.payload);
+      break;
+
     case 'error':
       if (!el.loginView.classList.contains('hidden')) {
         setStatus(el.loginStatus, msg.payload?.message || 'Error de servidor.', 'error');
@@ -266,6 +311,11 @@ window.addEventListener('message', event => {
       if (!el.purchasesView.classList.contains('hidden')) {
         setPurchaseSubmitting(false);
         setStatus(el.purchaseStatus, msg.payload?.message || 'Error de servidor.', 'error');
+      }
+
+      if (!el.deliveriesView.classList.contains('hidden')) {
+        setDeliverySubmitting(false);
+        setStatus(el.deliveryStatus, msg.payload?.message || 'Error de servidor.', 'error');
       }
       break;
   }
@@ -381,7 +431,7 @@ function renderModules() {
       const card = document.createElement('article');
       card.className = 'module-card';
 
-      if (module.key === 'purchases') {
+      if (module.key === 'purchases' || module.key === 'deliveries') {
         card.classList.add('clickable');
       }
 
@@ -396,6 +446,10 @@ function renderModules() {
 
       if (module.key === 'purchases') {
         card.addEventListener('click', openPurchases);
+      }
+
+      if (module.key === 'deliveries') {
+        card.addEventListener('click', openDeliveries);
       }
 
       el.modulesGrid.appendChild(card);
@@ -1032,6 +1086,246 @@ function handlePurchaseMutation(payload) {
 }
 
 
+
+/* DELIVERIES */
+function openDeliveries() {
+  if (!state.currentProject) return;
+
+  el.deliveriesProjectSubtitle.textContent =
+    `${state.currentProject.name || state.currentProject.id} · ${state.currentProject.campus || ''}`;
+
+  state.deliveryFilter = 'ALL';
+  state.deliveryCalendarDate = new Date();
+
+  show(el.deliveriesView);
+  setStatus(el.deliveryStatus, 'Cargando entregas…');
+
+  postToBackend('deliveryList', {projectId: state.currentProject.id});
+}
+
+function handleDeliveryList(payload) {
+  if (!payload?.ok) {
+    setStatus(el.deliveryStatus, payload?.message || 'No se han podido cargar las entregas.', 'error');
+    return;
+  }
+
+  state.deliveries = Array.isArray(payload.deliveries) ? payload.deliveries : [];
+  clearStatus(el.deliveryStatus);
+  renderDeliverySummary();
+  renderDeliveryCalendar();
+  renderDeliveryList();
+}
+
+function todayIso() {
+  const d = new Date();
+  return [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-');
+}
+
+function isDeliveryReceived(item) {
+  return ['COMPLETA','PARCIAL'].includes(item.receiptStatus);
+}
+
+function isDeliveryLate(item) {
+  return !isDeliveryReceived(item) && item.expectedDeliveryDate && item.expectedDeliveryDate < todayIso();
+}
+
+function isDeliveryUpcoming(item) {
+  return !isDeliveryReceived(item) && item.expectedDeliveryDate && item.expectedDeliveryDate >= todayIso();
+}
+
+function renderDeliverySummary() {
+  el.deliveryUpcomingCount.textContent = state.deliveries.filter(isDeliveryUpcoming).length;
+  el.deliveryLateCount.textContent = state.deliveries.filter(isDeliveryLate).length;
+  el.deliveryReceivedCount.textContent = state.deliveries.filter(isDeliveryReceived).length;
+}
+
+function renderDeliveryCalendar() {
+  const base = state.deliveryCalendarDate;
+  const year = base.getFullYear();
+  const month = base.getMonth();
+  const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  el.calendarMonthLabel.textContent = `${monthNames[month]} ${year}`;
+
+  const weekdays = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+  let html = weekdays.map(day => `<div class="calendar-weekday">${day}</div>`).join('');
+
+  const first = new Date(year,month,1);
+  const firstIndex = (first.getDay()+6)%7;
+  const start = new Date(year,month,1-firstIndex);
+
+  for (let i=0;i<42;i++) {
+    const date = new Date(start);
+    date.setDate(start.getDate()+i);
+
+    const iso = [
+      date.getFullYear(),
+      String(date.getMonth()+1).padStart(2,'0'),
+      String(date.getDate()).padStart(2,'0')
+    ].join('-');
+
+    const items = state.deliveries.filter(item => item.expectedDeliveryDate === iso);
+    const classes = ['calendar-day'];
+    if (date.getMonth() !== month) classes.push('outside');
+    if (iso === todayIso()) classes.push('today');
+
+    html += `
+      <div class="${classes.join(' ')}">
+        <div class="calendar-day-number">${date.getDate()}</div>
+        ${items.map(item => {
+          const eventClass = isDeliveryReceived(item) ? 'received' : isDeliveryLate(item) ? 'late' : '';
+          return `
+            <button class="calendar-event ${eventClass}" type="button" data-request-id="${esc(item.requestId)}">
+              <strong>${esc(item.supplier || item.requestId)}</strong>
+              <span>${esc(item.poNumber || item.requestId)}</span>
+            </button>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  el.deliveryCalendar.innerHTML = html;
+
+  el.deliveryCalendar.querySelectorAll('.calendar-event').forEach(button => {
+    button.addEventListener('click', () => {
+      const item = state.deliveries.find(d => d.requestId === button.dataset.requestId);
+      if (item) openDeliveryModal(item);
+    });
+  });
+}
+
+function renderDeliveryList() {
+  const rows = state.deliveries.filter(item => {
+    if (state.deliveryFilter === 'UPCOMING') return isDeliveryUpcoming(item);
+    if (state.deliveryFilter === 'LATE') return isDeliveryLate(item);
+    if (state.deliveryFilter === 'RECEIVED') return isDeliveryReceived(item);
+    return true;
+  });
+
+  el.deliveryList.innerHTML = '';
+
+  if (!rows.length) {
+    el.deliveryList.innerHTML = '<div class="empty-state">No hay entregas para este filtro.</div>';
+    return;
+  }
+
+  rows.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'delivery-row';
+    const dateClass = isDeliveryReceived(item) ? 'received' : isDeliveryLate(item) ? 'late' : '';
+
+    row.innerHTML = `
+      <div class="delivery-main">
+        <strong>${esc(item.supplier || 'Proveedor')}</strong>
+        <span>${esc(item.requestId)} · ${esc(item.poNumber || 'PO pendiente')}</span>
+      </div>
+      <div class="delivery-data"><span>Familia</span><strong>${esc(item.family || '—')}</strong></div>
+      <div class="delivery-data"><span>Destino</span><strong>${esc(item.destination || '—')}</strong></div>
+      <div><span class="delivery-date-pill ${dateClass}">${esc(item.expectedDeliveryDate || 'Sin fecha')}</span></div>
+      <button class="btn btn-secondary btn-sm open-delivery-btn" type="button">Abrir</button>
+    `;
+
+    row.querySelector('.open-delivery-btn').addEventListener('click', () => openDeliveryModal(item));
+    el.deliveryList.appendChild(row);
+  });
+}
+
+function openDeliveryModal(item) {
+  state.selectedDelivery = item;
+
+  el.deliveryModalTitle.textContent = item.requestId || 'Entrega';
+  el.deliveryModalMeta.textContent = [item.projectId,item.expectedDeliveryDate].filter(Boolean).join(' · ');
+  el.deliverySupplier.textContent = item.supplier || '—';
+  el.deliveryPo.textContent = item.poNumber || 'Pendiente';
+  el.deliveryFamily.textContent = item.family || '—';
+  el.deliveryDestination.textContent = [item.destinationType,item.destination].filter(Boolean).join(' · ') || '—';
+  el.deliveryDateInput.value = item.expectedDeliveryDate || '';
+  el.deliveryChangeReason.value = '';
+  el.deliveryReceiptStatus.value = item.receiptStatus === 'PARCIAL' ? 'PARCIAL' : 'COMPLETA';
+  el.deliveryReceiptNotes.value = item.receiptNotes || '';
+
+  const materials = Array.isArray(item.materials) ? item.materials : [];
+  el.deliveryMaterials.innerHTML = materials.length ? `
+    <table>
+      <thead><tr><th>Referencia</th><th>Descripción</th><th>Cantidad</th><th>Precio unit.</th></tr></thead>
+      <tbody>
+        ${materials.map(m => `<tr><td>${esc(m.reference||'—')}</td><td>${esc(m.description||'—')}</td><td>${esc(m.quantity||'—')}</td><td>${esc(m.unitPrice||'—')}</td></tr>`).join('')}
+      </tbody>
+    </table>
+  ` : '<div class="empty-state">Sin líneas de material.</div>';
+
+  setDeliverySubmitting(false);
+  el.deliveryModal.classList.remove('hidden');
+}
+
+function closeDeliveryModal() {
+  el.deliveryModal.classList.add('hidden');
+  state.selectedDelivery = null;
+  setDeliverySubmitting(false);
+}
+
+function setDeliverySubmitting(value) {
+  state.deliverySubmitting = value;
+  el.saveDeliveryDateBtn.disabled = value;
+  el.confirmDeliveryReceiptBtn.disabled = value;
+}
+
+function saveDeliveryDate() {
+  if (!state.selectedDelivery || state.deliverySubmitting) return;
+
+  const newDate = el.deliveryDateInput.value;
+  const reason = el.deliveryChangeReason.value.trim();
+
+  if (!newDate) {
+    setStatus(el.deliveryStatus,'Selecciona la nueva fecha de entrega.','error');
+    return;
+  }
+  if (!reason) {
+    setStatus(el.deliveryStatus,'Indica el motivo del cambio de fecha.','error');
+    return;
+  }
+
+  setDeliverySubmitting(true);
+  postToBackend('deliveryUpdateDate',{
+    requestId:state.selectedDelivery.requestId,
+    newDate:newDate,
+    reason:reason
+  });
+}
+
+function confirmDeliveryReceipt() {
+  if (!state.selectedDelivery || state.deliverySubmitting) return;
+
+  const receiptStatus = el.deliveryReceiptStatus.value;
+  const notes = el.deliveryReceiptNotes.value.trim();
+
+  if (receiptStatus === 'PARCIAL' && !notes) {
+    setStatus(el.deliveryStatus,'En una recepción parcial indica qué material queda pendiente.','error');
+    return;
+  }
+
+  setDeliverySubmitting(true);
+  postToBackend('deliveryConfirmReceipt',{
+    requestId:state.selectedDelivery.requestId,
+    receiptStatus:receiptStatus,
+    notes:notes
+  });
+}
+
+function handleDeliveryMutation(payload) {
+  setDeliverySubmitting(false);
+
+  if (!payload?.ok) {
+    setStatus(el.deliveryStatus,payload?.message || 'No se ha podido actualizar la entrega.','error');
+    return;
+  }
+
+  closeDeliveryModal();
+  setStatus(el.deliveryStatus,payload.message || 'Entrega actualizada.','success');
+  postToBackend('deliveryList',{projectId:state.currentProject.id});
+}
+
+
 /* LOGOUT / HELPERS */
 function logout() {
   state.credential = null;
@@ -1061,6 +1355,46 @@ function esc(value) {
 
 // Start Google login before wiring the rest of the UI.
 // This makes the login screen resilient to any later module-specific runtime error.
+
+el.backFromDeliveriesBtn.addEventListener('click', () => show(el.projectView));
+
+el.prevMonthBtn.addEventListener('click', () => {
+  state.deliveryCalendarDate = new Date(
+    state.deliveryCalendarDate.getFullYear(),
+    state.deliveryCalendarDate.getMonth() - 1,
+    1
+  );
+  renderDeliveryCalendar();
+});
+
+el.nextMonthBtn.addEventListener('click', () => {
+  state.deliveryCalendarDate = new Date(
+    state.deliveryCalendarDate.getFullYear(),
+    state.deliveryCalendarDate.getMonth() + 1,
+    1
+  );
+  renderDeliveryCalendar();
+});
+
+el.todayMonthBtn.addEventListener('click', () => {
+  state.deliveryCalendarDate = new Date();
+  renderDeliveryCalendar();
+});
+
+document.querySelectorAll('.delivery-filter').forEach(button => {
+  button.addEventListener('click', () => {
+    document.querySelectorAll('.delivery-filter').forEach(b => b.classList.remove('active'));
+    button.classList.add('active');
+    state.deliveryFilter = button.dataset.filter;
+    renderDeliveryList();
+  });
+});
+
+el.closeDeliveryModalBtn.addEventListener('click', closeDeliveryModal);
+el.deliveryModal.querySelector('.modal-backdrop').addEventListener('click', closeDeliveryModal);
+el.saveDeliveryDateBtn.addEventListener('click', saveDeliveryDate);
+el.confirmDeliveryReceiptBtn.addEventListener('click', confirmDeliveryReceipt);
+
 show(el.loginView);
 initGoogleIdentity();
 
