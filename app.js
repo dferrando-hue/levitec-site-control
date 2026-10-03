@@ -15,7 +15,9 @@ const state = {
     destinations: [],
     materials: []
   },
-  purchaseSubmitting: false
+  purchaseSubmitting: false,
+  workflowRequest: null,
+  workflowSubmitting: false
 };
 
 const $ = id => document.getElementById(id);
@@ -95,6 +97,22 @@ const el = {
   destinationSuggestions: $('destinationSuggestions'),
   materialReferenceSuggestions: $('materialReferenceSuggestions'),
   submitPurchaseBtn: $('submitPurchaseBtn'),
+
+  purchaseWorkflowModal: $('purchaseWorkflowModal'),
+  closeWorkflowModalBtn: $('closeWorkflowModalBtn'),
+  workflowRequestId: $('workflowRequestId'),
+  workflowRequestMeta: $('workflowRequestMeta'),
+  workflowSupplier: $('workflowSupplier'),
+  workflowFamilyDisplay: $('workflowFamilyDisplay'),
+  workflowRequiredDate: $('workflowRequiredDate'),
+  workflowDestination: $('workflowDestination'),
+  workflowMaterials: $('workflowMaterials'),
+  workflowNotes: $('workflowNotes'),
+  workflowFamilyInput: $('workflowFamilyInput'),
+  workflowStatusInput: $('workflowStatusInput'),
+  workflowPoInput: $('workflowPoInput'),
+  workflowExpectedDateInput: $('workflowExpectedDateInput'),
+  saveWorkflowBtn: $('saveWorkflowBtn'),
 
   backendForm: $('backendForm'),
   backendAction: $('backendAction'),
@@ -684,6 +702,7 @@ function renderPurchases() {
         </div>
         <div class="purchase-card-head-actions">
           <span class="purchase-status-pill ${statusClass}">${esc(statusLabel)}</span>
+          <button class="btn btn-secondary btn-sm workflow-purchase-btn" type="button">Tramitar</button>
           <button class="btn btn-secondary btn-sm reuse-purchase-btn" type="button">Reutilizar</button>
         </div>
       </div>
@@ -714,6 +733,9 @@ function renderPurchases() {
       ${req.notes ? `<div class="purchase-notes">${esc(req.notes)}</div>` : ''}
     `;
 
+    card.querySelector('.workflow-purchase-btn')
+      .addEventListener('click', () => openPurchaseWorkflow(req));
+
     card.querySelector('.reuse-purchase-btn')
       .addEventListener('click', () => openPurchaseModal(req));
 
@@ -730,6 +752,136 @@ function statusText(status) {
     CANCELADO: 'Cancelado'
   };
   return map[status] || status || '—';
+}
+
+
+function openPurchaseWorkflow(req) {
+  state.workflowRequest = req;
+
+  el.workflowRequestId.textContent = req.requestId || 'Solicitud';
+  el.workflowRequestMeta.textContent =
+    [req.projectId, req.createdAt, req.requester]
+      .filter(Boolean)
+      .join(' · ');
+
+  el.workflowSupplier.textContent = req.supplier || '—';
+  el.workflowFamilyDisplay.textContent = req.family || 'PENDIENTE';
+  el.workflowRequiredDate.textContent = req.requiredDate || '—';
+  el.workflowDestination.textContent =
+    [req.destinationType, req.destination]
+      .filter(Boolean)
+      .join(' · ') || '—';
+
+  el.workflowFamilyInput.value = req.family || '';
+  el.workflowStatusInput.value = req.status || 'PENDIENTE_ADMINISTRACION';
+  el.workflowPoInput.value = req.poNumber || '';
+  el.workflowExpectedDateInput.value = req.expectedDeliveryDate || '';
+
+  const materials = Array.isArray(req.materials)
+    ? req.materials
+    : [];
+
+  if (materials.length) {
+    el.workflowMaterials.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Referencia</th>
+            <th>Descripción</th>
+            <th>Cantidad</th>
+            <th>Precio unit.</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${materials.map(item => `
+            <tr>
+              <td>${esc(item.reference || '—')}</td>
+              <td>${esc(item.description || '—')}</td>
+              <td>${esc(item.quantity || '—')}</td>
+              <td>${esc(item.unitPrice || '—')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } else {
+    el.workflowMaterials.innerHTML =
+      '<div class="empty-state">Sin líneas de material.</div>';
+  }
+
+  el.workflowNotes.textContent = req.notes || 'Sin observaciones';
+
+  setWorkflowSubmitting(false);
+  el.purchaseWorkflowModal.classList.remove('hidden');
+}
+
+function closePurchaseWorkflow() {
+  el.purchaseWorkflowModal.classList.add('hidden');
+  state.workflowRequest = null;
+  setWorkflowSubmitting(false);
+}
+
+function setWorkflowSubmitting(value) {
+  state.workflowSubmitting = value;
+  el.saveWorkflowBtn.disabled = value;
+  el.saveWorkflowBtn.textContent = value
+    ? 'Guardando…'
+    : 'Guardar tramitación';
+}
+
+function savePurchaseWorkflow() {
+  if (!state.workflowRequest || state.workflowSubmitting) return;
+
+  const family = el.workflowFamilyInput.value.trim();
+  const status = el.workflowStatusInput.value;
+  const poNumber = el.workflowPoInput.value.trim();
+  const expectedDeliveryDate = el.workflowExpectedDateInput.value;
+
+  if (
+    ['PEDIDO_EMITIDO', 'CONFIRMADO_PROVEEDOR'].includes(status) &&
+    !family
+  ) {
+    setStatus(
+      el.purchaseStatus,
+      'La familia / imputación es obligatoria para emitir el pedido.',
+      'error'
+    );
+    return;
+  }
+
+  if (
+    ['PEDIDO_EMITIDO', 'CONFIRMADO_PROVEEDOR'].includes(status) &&
+    !poNumber
+  ) {
+    setStatus(
+      el.purchaseStatus,
+      'Introduce el nº PO / Sage antes de emitir el pedido.',
+      'error'
+    );
+    return;
+  }
+
+  if (
+    status === 'CONFIRMADO_PROVEEDOR' &&
+    !expectedDeliveryDate
+  ) {
+    setStatus(
+      el.purchaseStatus,
+      'Introduce la fecha prevista de entrega para confirmar el pedido con proveedor.',
+      'error'
+    );
+    return;
+  }
+
+  setWorkflowSubmitting(true);
+
+  postToBackend('purchaseUpdateStatus', {
+    requestId: state.workflowRequest.requestId,
+    family: family,
+    status: status,
+    poNumber: poNumber,
+    expectedDeliveryDate: expectedDeliveryDate
+  });
 }
 
 function openPurchaseModal(sourceRequest=null) {
@@ -863,6 +1015,7 @@ el.purchaseForm.addEventListener('submit', event => {
 
 function handlePurchaseMutation(payload) {
   setPurchaseSubmitting(false);
+  setWorkflowSubmitting(false);
 
   if (!payload?.ok) {
     setStatus(el.purchaseStatus, payload?.message || 'No se ha podido guardar.', 'error');
@@ -870,6 +1023,7 @@ function handlePurchaseMutation(payload) {
   }
 
   closePurchaseModal();
+  closePurchaseWorkflow();
   setStatus(el.purchaseStatus, payload.message || 'Guardado correctamente.', 'success');
 
   postToBackend('purchaseList', {
@@ -923,6 +1077,12 @@ el.purchaseModal.querySelector('.modal-backdrop').addEventListener('click', clos
 el.addMaterialRowBtn.addEventListener('click', () => addMaterialRow());
 el.purchaseDestination.addEventListener('change', applyDestinationSuggestion);
 el.purchaseDestination.addEventListener('blur', applyDestinationSuggestion);
+
+el.closeWorkflowModalBtn.addEventListener('click', closePurchaseWorkflow);
+el.purchaseWorkflowModal
+  .querySelector('.modal-backdrop')
+  .addEventListener('click', closePurchaseWorkflow);
+el.saveWorkflowBtn.addEventListener('click', savePurchaseWorkflow);
 
 show(el.loginView);
 initGoogleIdentity();
