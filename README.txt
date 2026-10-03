@@ -1,15 +1,25 @@
-LEVITEC SITE CONTROL v0.3.5
-=========================
+LEVITEC SITE CONTROL v0.3.6
 
-HOTFIX LOGIN
-------------
-El inicio de Google se ejecuta antes de enlazar los controles de módulos.
-Así, aunque exista un error de runtime en una pantalla secundaria, el botón de inicio de sesión sigue apareciendo.
+FIX
+---
+Corrige la migración automática de columnas de SOLICITUDES_PEDIDO.
 
-No cambia el backend respecto a v0.3.4.
+Error corregido:
+Falta la columna FECHA_ENTREGA_PREVISTA en SOLICITUDES_PEDIDO.
 
-GITHUB
-------
-Reemplazar index.html y app.js. styles.css puede reemplazarse también para mantener el paquete completo.
-Commit: Frontend v0.3.5 - Login bootstrap hotfix
-Después Ctrl+F5.
+PASOS
+-----
+1. Sustituir Código.gs por Code.gs.
+2. Guardar.
+3. Ejecutar migratePurchaseSchemaV064().
+4. Confirmar en el log que aparecen:
+   FECHA_ENTREGA_PREVISTA
+   FECHA_ACTUALIZACION
+5. Ejecutar testUserAccess().
+6. Desplegar:
+   CORE v0.6.4 - Purchase schema migration fix
+
+GitHub:
+- reemplazar index.html, app.js y styles.css
+- commit: Frontend v0.3.6 - Purchase schema migration fix
+- Ctrl+F5
