@@ -20,3 +20,8 @@ No es necesario borrar el historial de GitHub. Subir los nuevos archivos con el 
 APPS SCRIPT
 -----------
 Code.gs es el mismo backend v0.5.0. Si ya está desplegado y funciona, NO hace falta volver a sustituirlo ni desplegarlo.
+
+
+v0.2.2 FIX
+----------
+Corregido app.js: la v0.2.1 contenía saltos de línea escapados literalmente y el navegador no podía ejecutar JavaScript. Esto impedía renderizar el botón de Google Login.
