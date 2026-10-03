@@ -76,9 +76,45 @@
 
         <div id="modulesGrid" class="modules-grid"></div>
       </section>
+
+      <section id="adminProjectsView" class="view hidden">
+        <div class="section-toolbar">
+          <button id="backProjectHomeBtn" class="btn btn-secondary" type="button">← Volver</button>
+          <div>
+            <div class="eyebrow">ADMINISTRACIÓN</div>
+            <h1>Proyectos</h1>
+            <p class="muted">Alta, edición y activación de proyectos.</p>
+          </div>
+          <button id="newProjectBtn" class="btn btn-primary" type="button">+ Nuevo proyecto</button>
+        </div>
+        <div id="adminProjectStatus" class="status hidden"></div>
+        <div id="adminProjectsList" class="admin-projects-list"></div>
+      </section>
     </main>
 
-    <footer class="footer">LEVITEC SITE CONTROL · v0.1</footer>
+    <footer class="footer">LEVITEC SITE CONTROL · v0.2</footer>
+  </div>
+
+
+  <div id="projectModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-card">
+      <div class="modal-head">
+        <div><div class="eyebrow">ADMINISTRACIÓN</div><h2 id="projectModalTitle">Nuevo proyecto</h2></div>
+        <button id="closeProjectModalBtn" class="icon-btn" type="button">×</button>
+      </div>
+      <form id="projectForm">
+        <input type="hidden" id="projectFormMode" value="create">
+        <label>ID proyecto<input id="projectIdInput" type="text" placeholder="Ej. ZAZ172" autocomplete="off" required></label>
+        <label>Nombre<input id="projectNameInput" type="text" placeholder="Ej. ZAZ172" autocomplete="off"></label>
+        <label>Campus<input id="projectCampusInput" type="text" placeholder="Ej. HUESCA" autocomplete="off"></label>
+        <label class="check-row"><input id="projectActiveInput" type="checkbox" checked> Proyecto activo</label>
+        <div class="modal-actions">
+          <button id="cancelProjectBtn" class="btn btn-secondary" type="button">Cancelar</button>
+          <button class="btn btn-primary" type="submit">Guardar</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <iframe name="backendFrame" id="backendFrame" class="hidden-frame"></iframe>
@@ -86,6 +122,7 @@
   <form id="backendForm" method="post" target="backendFrame" action="https://script.google.com/macros/s/AKfycbwtfMhFPG7unUBRTSfT4A6TKzd0o5baXB9QOFEndL56SFIsCcZlQ6o_M5PUfbmVNG26/exec" class="hidden">
     <input type="hidden" name="action" id="backendAction">
     <input type="hidden" name="credential" id="backendCredential">
+    <input type="hidden" name="payload" id="backendPayload">
   </form>
 
   <script>
