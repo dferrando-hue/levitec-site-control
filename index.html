@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=0.6.1">
+  <link rel="stylesheet" href="styles.css?v=0.6.2">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -137,6 +137,7 @@
             <th>Zona</th>
             <th>Cantidad</th>
             <th>Estado</th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="warehouseStockBody"></tbody>
@@ -482,25 +483,51 @@
       <button id="closeMaterialRequestModalBtn" class="icon-btn" type="button">×</button>
     </div>
 
-    <form id="materialRequestForm" class="stack-form">
+    <form id="materialRequestForm" class="stack-form material-request-form">
       <label>
         <span>Almacén origen</span>
         <select id="materialRequestWarehouse"></select>
       </label>
 
-      <label>
-        <span>Referencia</span>
-        <input id="materialRequestReference" type="text" placeholder="Referencia">
-      </label>
+      <div class="material-finder-grid">
+        <label>
+          <span>Buscar material</span>
+          <input id="materialRequestSearch" type="search" autocomplete="off" placeholder="Referencia o descripción...">
+        </label>
+
+        <label>
+          <span>Filtrar por zona</span>
+          <select id="materialRequestZoneFilter">
+            <option value="">Todas las zonas</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="materialRequestResults" class="material-search-results"></div>
+
+      <div id="materialRequestSelected" class="material-selected hidden">
+        <div class="material-selected-head">
+          <div>
+            <span class="material-selected-kicker">MATERIAL SELECCIONADO</span>
+            <strong id="materialRequestSelectedTitle"></strong>
+            <small id="materialRequestSelectedDescription"></small>
+          </div>
+          <button id="clearMaterialRequestSelectionBtn" class="btn btn-secondary btn-sm" type="button">Cambiar</button>
+        </div>
+        <div class="material-selected-stats">
+          <div><span>Disponible</span><strong id="materialRequestAvailable">0</strong></div>
+          <div><span>Zonas</span><strong id="materialRequestZones">—</strong></div>
+          <div><span>En cuarentena</span><strong id="materialRequestQuarantine">0</strong></div>
+        </div>
+      </div>
+
+      <input id="materialRequestReference" type="hidden">
+      <input id="materialRequestDescription" type="hidden">
 
       <label>
-        <span>Descripción</span>
-        <input id="materialRequestDescription" type="text" placeholder="Descripción">
-      </label>
-
-      <label>
-        <span>Cantidad *</span>
-        <input id="materialRequestQuantity" type="text" placeholder="Ej. 10" required>
+        <span>Cantidad solicitada *</span>
+        <input id="materialRequestQuantity" type="number" min="0.001" step="0.001" placeholder="Selecciona primero un material" required disabled>
+        <small id="materialRequestQuantityHint" class="field-hint"></small>
       </label>
 
       <label>
@@ -508,9 +535,11 @@
         <textarea id="materialRequestNotes" rows="4" placeholder="Destino en obra, urgencia, comentarios..."></textarea>
       </label>
 
+      <div id="materialRequestStatus" class="status hidden"></div>
+
       <div class="modal-actions">
         <button id="cancelMaterialRequestBtn" class="btn btn-secondary" type="button">Cancelar</button>
-        <button class="btn btn-primary" type="submit">Solicitar</button>
+        <button id="submitMaterialRequestBtn" class="btn btn-primary" type="submit" disabled>Solicitar</button>
       </div>
     </form>
   </div>
@@ -621,6 +650,6 @@ window.LEVITEC_CONFIG = {
 };
 </script>
 
-<script src="app.js?v=0.6.1"></script>
+<script src="app.js?v=0.6.2"></script>
 </body>
 </html>
