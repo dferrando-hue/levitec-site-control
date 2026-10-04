@@ -22,7 +22,14 @@ const state = {
   deliveryFilter: 'ALL',
   deliveryCalendarDate: new Date(),
   selectedDelivery: null,
-  deliverySubmitting: false
+  deliverySubmitting: false,
+
+  warehouses: [],
+  warehouseZones: [],
+  warehouseStock: [],
+  warehouseRequests: [],
+  selectedWarehouseId: null,
+  warehousePermissions: {}
 };
 
 const $ = id => document.getElementById(id);
@@ -34,6 +41,7 @@ const el = {
   globalAdminView: $('globalAdminView'),
   purchasesView: $('purchasesView'),
   deliveriesView: $('deliveriesView'),
+  warehouseView: $('warehouseView'),
 
   googleButton: $('googleButton'),
   loginStatus: $('loginStatus'),
@@ -149,6 +157,38 @@ const el = {
   deliveryReceiptNotes: $('deliveryReceiptNotes'),
   confirmDeliveryReceiptBtn: $('confirmDeliveryReceiptBtn'),
 
+  backFromWarehouseBtn: $('backFromWarehouseBtn'),
+  warehouseProjectSubtitle: $('warehouseProjectSubtitle'),
+  warehouseStatus: $('warehouseStatus'),
+  warehouseSelect: $('warehouseSelect'),
+  warehouseMeta: $('warehouseMeta'),
+  warehouseSkuCount: $('warehouseSkuCount'),
+  warehouseQuarantineCount: $('warehouseQuarantineCount'),
+  warehouseOpenRequestsCount: $('warehouseOpenRequestsCount'),
+  warehouseStockBody: $('warehouseStockBody'),
+  warehouseRequestsList: $('warehouseRequestsList'),
+  warehouseZonesList: $('warehouseZonesList'),
+  newMaterialRequestBtn: $('newMaterialRequestBtn'),
+  newZoneBtn: $('newZoneBtn'),
+
+  materialRequestModal: $('materialRequestModal'),
+  closeMaterialRequestModalBtn: $('closeMaterialRequestModalBtn'),
+  cancelMaterialRequestBtn: $('cancelMaterialRequestBtn'),
+  materialRequestForm: $('materialRequestForm'),
+  materialRequestWarehouse: $('materialRequestWarehouse'),
+  materialRequestReference: $('materialRequestReference'),
+  materialRequestDescription: $('materialRequestDescription'),
+  materialRequestQuantity: $('materialRequestQuantity'),
+  materialRequestNotes: $('materialRequestNotes'),
+
+  warehouseZoneModal: $('warehouseZoneModal'),
+  closeWarehouseZoneModalBtn: $('closeWarehouseZoneModalBtn'),
+  cancelWarehouseZoneBtn: $('cancelWarehouseZoneBtn'),
+  warehouseZoneForm: $('warehouseZoneForm'),
+  warehouseZoneId: $('warehouseZoneId'),
+  warehouseZoneName: $('warehouseZoneName'),
+  warehouseZoneType: $('warehouseZoneType'),
+
   backendForm: $('backendForm'),
   backendAction: $('backendAction'),
   backendCredential: $('backendCredential'),
@@ -189,7 +229,8 @@ function show(view) {
     el.projectView,
     el.globalAdminView,
     el.purchasesView,
-    el.deliveriesView
+    el.deliveriesView,
+    el.warehouseView
   ].forEach(v => v.classList.add('hidden'));
 
   view.classList.remove('hidden');
@@ -301,6 +342,23 @@ window.addEventListener('message', event => {
       handleDeliveryMutation(msg.payload);
       break;
 
+    case 'warehouseBootstrap':
+      handleWarehouseBootstrap(msg.payload);
+      break;
+
+    case 'warehouseStockList':
+      handleWarehouseStock(msg.payload);
+      break;
+
+    case 'warehouseRequestList':
+      handleWarehouseRequests(msg.payload);
+      break;
+
+    case 'warehouseRequestCreate':
+    case 'warehouseZoneCreate':
+      handleWarehouseMutation(msg.payload);
+      break;
+
     case 'error':
       if (!el.loginView.classList.contains('hidden')) {
         setStatus(el.loginStatus, msg.payload?.message || 'Error de servidor.', 'error');
@@ -316,6 +374,10 @@ window.addEventListener('message', event => {
       if (!el.deliveriesView.classList.contains('hidden')) {
         setDeliverySubmitting(false);
         setStatus(el.deliveryStatus, msg.payload?.message || 'Error de servidor.', 'error');
+      }
+
+      if (!el.warehouseView.classList.contains('hidden')) {
+        setStatus(el.warehouseStatus, msg.payload?.message || 'Error de servidor.', 'error');
       }
       break;
   }
@@ -431,7 +493,7 @@ function renderModules() {
       const card = document.createElement('article');
       card.className = 'module-card';
 
-      if (module.key === 'purchases' || module.key === 'deliveries') {
+      if (['purchases','deliveries','warehouse'].includes(module.key)) {
         card.classList.add('clickable');
       }
 
@@ -450,6 +512,10 @@ function renderModules() {
 
       if (module.key === 'deliveries') {
         card.addEventListener('click', openDeliveries);
+      }
+
+      if (module.key === 'warehouse') {
+        card.addEventListener('click', openWarehouse);
       }
 
       el.modulesGrid.appendChild(card);
@@ -1326,6 +1392,313 @@ function handleDeliveryMutation(payload) {
 }
 
 
+
+/* WAREHOUSE */
+function openWarehouse() {
+  if (!state.currentProject) return;
+
+  el.warehouseProjectSubtitle.textContent =
+    `${state.currentProject.name || state.currentProject.id} · ${state.currentProject.campus || ''}`;
+
+  show(el.warehouseView);
+  setStatus(el.warehouseStatus, 'Cargando almacenes…');
+
+  postToBackend('warehouseBootstrap', {
+    projectId: state.currentProject.id
+  });
+}
+
+function handleWarehouseBootstrap(payload) {
+  if (!payload?.ok) {
+    setStatus(el.warehouseStatus, payload?.message || 'No se han podido cargar los almacenes.', 'error');
+    return;
+  }
+
+  state.warehouses = Array.isArray(payload.warehouses) ? payload.warehouses : [];
+  state.warehouseZones = Array.isArray(payload.zones) ? payload.zones : [];
+  state.warehousePermissions = payload.permissions || {};
+
+  clearStatus(el.warehouseStatus);
+
+  renderWarehouseSelector();
+
+  if (state.warehouses.length) {
+    const currentCampus = String(state.currentProject?.campus || '').trim().toLowerCase();
+
+    const preferred = state.warehouses.find(w =>
+      String(w.campus || '').trim().toLowerCase() === currentCampus
+    ) || state.warehouses[0];
+
+    state.selectedWarehouseId = preferred.id;
+    el.warehouseSelect.value = preferred.id;
+
+    loadWarehouseData();
+  } else {
+    el.warehouseStockBody.innerHTML =
+      '<tr><td colspan="5">No tienes almacenes asignados.</td></tr>';
+  }
+
+  renderWarehouseZones();
+  el.newZoneBtn.classList.toggle(
+    'hidden',
+    !state.warehousePermissions.canConfigure
+  );
+}
+
+function renderWarehouseSelector() {
+  el.warehouseSelect.innerHTML =
+    state.warehouses
+      .map(w =>
+        `<option value="${esc(w.id)}">${esc(w.name || w.id)} · ${esc(w.discipline || '')}</option>`
+      )
+      .join('');
+
+  el.materialRequestWarehouse.innerHTML =
+    state.warehouses
+      .map(w =>
+        `<option value="${esc(w.id)}">${esc(w.name || w.id)}</option>`
+      )
+      .join('');
+}
+
+function loadWarehouseData() {
+  if (!state.selectedWarehouseId) return;
+
+  const warehouse = state.warehouses.find(
+    w => w.id === state.selectedWarehouseId
+  );
+
+  el.warehouseMeta.textContent = warehouse
+    ? [warehouse.campus, warehouse.discipline, warehouse.warehouseRole]
+        .filter(Boolean)
+        .join(' · ')
+    : '';
+
+  postToBackend('warehouseStockList', {
+    warehouseId: state.selectedWarehouseId
+  });
+
+  postToBackend('warehouseRequestList', {
+    projectId: state.currentProject.id
+  });
+
+  renderWarehouseZones();
+}
+
+function handleWarehouseStock(payload) {
+  if (!payload?.ok) {
+    setStatus(el.warehouseStatus, payload?.message || 'No se ha podido cargar el stock.', 'error');
+    return;
+  }
+
+  state.warehouseStock = Array.isArray(payload.stock)
+    ? payload.stock
+    : [];
+
+  renderWarehouseStock();
+  renderWarehouseSummary();
+}
+
+function handleWarehouseRequests(payload) {
+  if (!payload?.ok) {
+    setStatus(el.warehouseStatus, payload?.message || 'No se han podido cargar las solicitudes.', 'error');
+    return;
+  }
+
+  state.warehouseRequests = Array.isArray(payload.requests)
+    ? payload.requests
+    : [];
+
+  renderWarehouseRequests();
+  renderWarehouseSummary();
+}
+
+function renderWarehouseSummary() {
+  const warehouseId = state.selectedWarehouseId;
+
+  const stock = state.warehouseStock.filter(
+    item => item.warehouseId === warehouseId
+  );
+
+  const refs = new Set(
+    stock
+      .map(item => item.reference)
+      .filter(Boolean)
+  );
+
+  const quarantine = stock.filter(
+    item => item.status === 'QUARANTINE'
+  ).length;
+
+  const openRequests = state.warehouseRequests.filter(
+    req =>
+      req.warehouseId === warehouseId &&
+      !['ENTREGADA','CANCELADA'].includes(req.status)
+  ).length;
+
+  el.warehouseSkuCount.textContent = refs.size;
+  el.warehouseQuarantineCount.textContent = quarantine;
+  el.warehouseOpenRequestsCount.textContent = openRequests;
+}
+
+function renderWarehouseStock() {
+  const rows = state.warehouseStock.filter(
+    item => item.warehouseId === state.selectedWarehouseId
+  );
+
+  el.warehouseStockBody.innerHTML = '';
+
+  if (!rows.length) {
+    el.warehouseStockBody.innerHTML =
+      '<tr><td colspan="5">No hay stock registrado en este almacén.</td></tr>';
+    return;
+  }
+
+  rows.forEach(item => {
+    const tr = document.createElement('tr');
+
+    tr.innerHTML = `
+      <td>${esc(item.reference || '—')}</td>
+      <td>${esc(item.description || '—')}</td>
+      <td>${esc(item.zoneId || '—')}</td>
+      <td>${esc(item.quantity || '0')} ${esc(item.unit || '')}</td>
+      <td>${esc(item.status || 'OK')}</td>
+    `;
+
+    el.warehouseStockBody.appendChild(tr);
+  });
+}
+
+function renderWarehouseRequests() {
+  const rows = state.warehouseRequests.filter(
+    req => req.warehouseId === state.selectedWarehouseId
+  );
+
+  el.warehouseRequestsList.innerHTML = '';
+
+  if (!rows.length) {
+    el.warehouseRequestsList.innerHTML =
+      '<div class="empty-state">No hay solicitudes para este almacén.</div>';
+    return;
+  }
+
+  rows.forEach(req => {
+    const card = document.createElement('div');
+    card.className = 'warehouse-request-card';
+
+    card.innerHTML = `
+      <strong>${esc(req.reference || req.description || req.requestId)}</strong>
+      <span>${esc(req.quantity)} · ${esc(req.status)} · ${esc(req.requestedAt)}</span>
+      ${req.notes ? `<span>${esc(req.notes)}</span>` : ''}
+    `;
+
+    el.warehouseRequestsList.appendChild(card);
+  });
+}
+
+function renderWarehouseZones() {
+  const rows = state.warehouseZones.filter(
+    zone => zone.warehouseId === state.selectedWarehouseId
+  );
+
+  el.warehouseZonesList.innerHTML = '';
+
+  if (!rows.length) {
+    el.warehouseZonesList.innerHTML =
+      '<div class="empty-state">No hay zonas configuradas.</div>';
+    return;
+  }
+
+  rows.forEach(zone => {
+    const card = document.createElement('div');
+    card.className =
+      'zone-card' +
+      (zone.type === 'QUARANTINE' ? ' quarantine' : '');
+
+    card.innerHTML = `
+      <strong>${esc(zone.name || zone.zoneId)}</strong>
+      <span>${esc(zone.zoneId)} · ${esc(zone.type)}</span>
+    `;
+
+    el.warehouseZonesList.appendChild(card);
+  });
+}
+
+function openMaterialRequestModal() {
+  if (!state.warehouses.length) return;
+
+  el.materialRequestForm.reset();
+  el.materialRequestWarehouse.value = state.selectedWarehouseId || state.warehouses[0].id;
+  el.materialRequestModal.classList.remove('hidden');
+}
+
+function closeMaterialRequestModal() {
+  el.materialRequestModal.classList.add('hidden');
+}
+
+el.materialRequestForm.addEventListener('submit', event => {
+  event.preventDefault();
+
+  postToBackend('warehouseRequestCreate', {
+    projectId: state.currentProject.id,
+    warehouseId: el.materialRequestWarehouse.value,
+    reference: el.materialRequestReference.value,
+    description: el.materialRequestDescription.value,
+    quantity: el.materialRequestQuantity.value,
+    notes: el.materialRequestNotes.value
+  });
+});
+
+function openWarehouseZoneModal() {
+  el.warehouseZoneForm.reset();
+  el.warehouseZoneModal.classList.remove('hidden');
+}
+
+function closeWarehouseZoneModal() {
+  el.warehouseZoneModal.classList.add('hidden');
+}
+
+el.warehouseZoneForm.addEventListener('submit', event => {
+  event.preventDefault();
+
+  postToBackend('warehouseZoneCreate', {
+    warehouseId: state.selectedWarehouseId,
+    zoneId: el.warehouseZoneId.value,
+    name: el.warehouseZoneName.value,
+    type: el.warehouseZoneType.value
+  });
+});
+
+function handleWarehouseMutation(payload) {
+  if (!payload?.ok) {
+    setStatus(el.warehouseStatus, payload?.message || 'No se ha podido guardar.', 'error');
+    return;
+  }
+
+  closeMaterialRequestModal();
+  closeWarehouseZoneModal();
+
+  setStatus(el.warehouseStatus, payload.message || 'Guardado correctamente.', 'success');
+
+  postToBackend('warehouseBootstrap', {
+    projectId: state.currentProject.id
+  });
+}
+
+function setWarehouseTab(tabName) {
+  document.querySelectorAll('.warehouse-tab').forEach(btn => {
+    btn.classList.toggle(
+      'active',
+      btn.dataset.tab === tabName
+    );
+  });
+
+  el.warehouseStockPanel.classList.toggle('hidden', tabName !== 'stock');
+  el.warehouseRequestsPanel.classList.toggle('hidden', tabName !== 'requests');
+  el.warehouseZonesPanel.classList.toggle('hidden', tabName !== 'zones');
+}
+
+
 /* LOGOUT / HELPERS */
 function logout() {
   state.credential = null;
@@ -1394,6 +1767,32 @@ el.closeDeliveryModalBtn.addEventListener('click', closeDeliveryModal);
 el.deliveryModal.querySelector('.modal-backdrop').addEventListener('click', closeDeliveryModal);
 el.saveDeliveryDateBtn.addEventListener('click', saveDeliveryDate);
 el.confirmDeliveryReceiptBtn.addEventListener('click', confirmDeliveryReceipt);
+
+
+el.backFromWarehouseBtn.addEventListener('click', () => show(el.projectView));
+
+el.warehouseSelect.addEventListener('change', () => {
+  state.selectedWarehouseId = el.warehouseSelect.value;
+  loadWarehouseData();
+});
+
+document.querySelectorAll('.warehouse-tab').forEach(button => {
+  button.addEventListener('click', () => {
+    setWarehouseTab(button.dataset.tab);
+  });
+});
+
+el.newMaterialRequestBtn.addEventListener('click', openMaterialRequestModal);
+el.closeMaterialRequestModalBtn.addEventListener('click', closeMaterialRequestModal);
+el.cancelMaterialRequestBtn.addEventListener('click', closeMaterialRequestModal);
+el.materialRequestModal.querySelector('.modal-backdrop')
+  .addEventListener('click', closeMaterialRequestModal);
+
+el.newZoneBtn.addEventListener('click', openWarehouseZoneModal);
+el.closeWarehouseZoneModalBtn.addEventListener('click', closeWarehouseZoneModal);
+el.cancelWarehouseZoneBtn.addEventListener('click', closeWarehouseZoneModal);
+el.warehouseZoneModal.querySelector('.modal-backdrop')
+  .addEventListener('click', closeWarehouseZoneModal);
 
 show(el.loginView);
 initGoogleIdentity();

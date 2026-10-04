@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=0.4.0">
+  <link rel="stylesheet" href="styles.css?v=0.6.0">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -87,7 +87,78 @@
   </section>
 
 
-  <section id="deliveriesView" class="view hidden">
+  
+<section id="warehouseView" class="view hidden">
+
+  <div class="section-toolbar">
+    <button id="backFromWarehouseBtn" class="btn btn-secondary" type="button">← Proyecto</button>
+
+    <div>
+      <div class="eyebrow">WAREHOUSE</div>
+      <h1>Almacenes</h1>
+      <p id="warehouseProjectSubtitle" class="muted"></p>
+    </div>
+
+    <button id="newMaterialRequestBtn" class="btn btn-primary" type="button">
+      + Solicitar material
+    </button>
+  </div>
+
+  <div id="warehouseStatus" class="status hidden"></div>
+
+  <div class="warehouse-selector-row">
+    <label>
+      <span>Almacén</span>
+      <select id="warehouseSelect"></select>
+    </label>
+
+    <div id="warehouseMeta" class="warehouse-meta"></div>
+  </div>
+
+  <div class="warehouse-summary">
+    <div><span>REFERENCIAS</span><strong id="warehouseSkuCount">0</strong></div>
+    <div><span>EN CUARENTENA</span><strong id="warehouseQuarantineCount">0</strong></div>
+    <div><span>SOLICITUDES ABIERTAS</span><strong id="warehouseOpenRequestsCount">0</strong></div>
+  </div>
+
+  <div class="warehouse-tabs">
+    <button class="warehouse-tab active" data-tab="stock" type="button">Stock</button>
+    <button class="warehouse-tab" data-tab="requests" type="button">Solicitudes</button>
+    <button class="warehouse-tab" data-tab="zones" type="button">Zonas</button>
+  </div>
+
+  <div id="warehouseStockPanel" class="warehouse-panel">
+    <div class="warehouse-table-wrap">
+      <table class="warehouse-table">
+        <thead>
+          <tr>
+            <th>Referencia</th>
+            <th>Descripción</th>
+            <th>Zona</th>
+            <th>Cantidad</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="warehouseStockBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="warehouseRequestsPanel" class="warehouse-panel hidden">
+    <div id="warehouseRequestsList" class="warehouse-requests-list"></div>
+  </div>
+
+  <div id="warehouseZonesPanel" class="warehouse-panel hidden">
+    <div class="zones-head">
+      <h2>Zonas del almacén</h2>
+      <button id="newZoneBtn" class="btn btn-secondary btn-sm" type="button">+ Nueva zona</button>
+    </div>
+    <div id="warehouseZonesList" class="zones-grid"></div>
+  </div>
+
+</section>
+
+<section id="deliveriesView" class="view hidden">
   <div class="section-toolbar deliveries-toolbar">
     <button id="backFromDeliveriesBtn" class="btn btn-secondary" type="button">← Proyecto</button>
     <div>
@@ -399,6 +470,93 @@
   </div>
 </div>
 
+
+<div id="materialRequestModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">WAREHOUSE</div>
+        <h2>Solicitar material</h2>
+      </div>
+      <button id="closeMaterialRequestModalBtn" class="icon-btn" type="button">×</button>
+    </div>
+
+    <form id="materialRequestForm" class="stack-form">
+      <label>
+        <span>Almacén origen</span>
+        <select id="materialRequestWarehouse"></select>
+      </label>
+
+      <label>
+        <span>Referencia</span>
+        <input id="materialRequestReference" type="text" placeholder="Referencia">
+      </label>
+
+      <label>
+        <span>Descripción</span>
+        <input id="materialRequestDescription" type="text" placeholder="Descripción">
+      </label>
+
+      <label>
+        <span>Cantidad *</span>
+        <input id="materialRequestQuantity" type="text" placeholder="Ej. 10" required>
+      </label>
+
+      <label>
+        <span>Observaciones</span>
+        <textarea id="materialRequestNotes" rows="4" placeholder="Destino en obra, urgencia, comentarios..."></textarea>
+      </label>
+
+      <div class="modal-actions">
+        <button id="cancelMaterialRequestBtn" class="btn btn-secondary" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Solicitar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<div id="warehouseZoneModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">CONFIGURACIÓN ALMACÉN</div>
+        <h2>Nueva zona</h2>
+      </div>
+      <button id="closeWarehouseZoneModalBtn" class="icon-btn" type="button">×</button>
+    </div>
+
+    <form id="warehouseZoneForm" class="stack-form">
+      <label>
+        <span>ID zona</span>
+        <input id="warehouseZoneId" type="text" placeholder="Ej. A01" required>
+      </label>
+
+      <label>
+        <span>Nombre</span>
+        <input id="warehouseZoneName" type="text" placeholder="Ej. Tubería COOL-FIT" required>
+      </label>
+
+      <label>
+        <span>Tipo</span>
+        <select id="warehouseZoneType">
+          <option value="STORAGE">Almacenaje</option>
+          <option value="QUARANTINE">Cuarentena</option>
+          <option value="RECEIVING">Recepción</option>
+          <option value="STAGING">Preparación / Salida</option>
+        </select>
+      </label>
+
+      <div class="modal-actions">
+        <button id="cancelWarehouseZoneBtn" class="btn btn-secondary" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Crear zona</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div id="deliveryModal" class="modal hidden">
   <div class="modal-backdrop"></div>
   <div class="modal-card modal-wide">
@@ -463,6 +621,6 @@ window.LEVITEC_CONFIG = {
 };
 </script>
 
-<script src="app.js?v=0.4.0"></script>
+<script src="app.js?v=0.6.0"></script>
 </body>
 </html>
