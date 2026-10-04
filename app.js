@@ -29,7 +29,8 @@ const state = {
   warehouseStock: [],
   warehouseRequests: [],
   selectedWarehouseId: null,
-  warehousePermissions: {}
+  warehousePermissions: {},
+  materialRequestSelection: null
 };
 
 const $ = id => document.getElementById(id);
@@ -176,10 +177,23 @@ const el = {
   cancelMaterialRequestBtn: $('cancelMaterialRequestBtn'),
   materialRequestForm: $('materialRequestForm'),
   materialRequestWarehouse: $('materialRequestWarehouse'),
+  materialRequestSearch: $('materialRequestSearch'),
+  materialRequestZoneFilter: $('materialRequestZoneFilter'),
+  materialRequestResults: $('materialRequestResults'),
+  materialRequestSelected: $('materialRequestSelected'),
+  materialRequestSelectedTitle: $('materialRequestSelectedTitle'),
+  materialRequestSelectedDescription: $('materialRequestSelectedDescription'),
+  materialRequestAvailable: $('materialRequestAvailable'),
+  materialRequestZones: $('materialRequestZones'),
+  materialRequestQuarantine: $('materialRequestQuarantine'),
+  clearMaterialRequestSelectionBtn: $('clearMaterialRequestSelectionBtn'),
   materialRequestReference: $('materialRequestReference'),
   materialRequestDescription: $('materialRequestDescription'),
   materialRequestQuantity: $('materialRequestQuantity'),
+  materialRequestQuantityHint: $('materialRequestQuantityHint'),
   materialRequestNotes: $('materialRequestNotes'),
+  materialRequestStatus: $('materialRequestStatus'),
+  submitMaterialRequestBtn: $('submitMaterialRequestBtn'),
 
   warehouseZoneModal: $('warehouseZoneModal'),
   closeWarehouseZoneModalBtn: $('closeWarehouseZoneModalBtn'),
@@ -1435,7 +1449,7 @@ function handleWarehouseBootstrap(payload) {
     loadWarehouseData();
   } else {
     el.warehouseStockBody.innerHTML =
-      '<tr><td colspan="5">No hay almacenes configurados para este proyecto.</td></tr>';
+      '<tr><td colspan="6">No hay almacenes configurados para este proyecto.</td></tr>';
   }
 
   renderWarehouseZones();
@@ -1495,6 +1509,10 @@ function handleWarehouseStock(payload) {
   renderWarehouseStock();
   renderWarehouseSummary();
 
+  if (!el.materialRequestModal.classList.contains('hidden')) {
+    refreshMaterialRequestFinder();
+  }
+
   // El frontend usa un único iframe oculto: serializamos las llamadas.
   postToBackend('warehouseRequestList', {
     projectId: state.currentProject.id
@@ -1552,12 +1570,13 @@ function renderWarehouseStock() {
 
   if (!rows.length) {
     el.warehouseStockBody.innerHTML =
-      '<tr><td colspan="5">No hay stock registrado en este almacén.</td></tr>';
+      '<tr><td colspan="6">No hay stock registrado en este almacén.</td></tr>';
     return;
   }
 
   rows.forEach(item => {
     const tr = document.createElement('tr');
+    const isQuarantine = item.status === 'QUARANTINE';
 
     tr.innerHTML = `
       <td>${esc(item.reference || '—')}</td>
@@ -1565,8 +1584,26 @@ function renderWarehouseStock() {
       <td>${esc(item.zoneId || '—')}</td>
       <td>${esc(item.quantity || '0')} ${esc(item.unit || '')}</td>
       <td>${esc(item.status || 'OK')}</td>
+      <td class="warehouse-row-action"></td>
     `;
 
+    const actionCell = tr.querySelector('.warehouse-row-action');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-secondary btn-sm';
+    button.textContent = isQuarantine ? 'Cuarentena' : 'Solicitar';
+    button.disabled = isQuarantine;
+
+    if (!isQuarantine) {
+      button.addEventListener('click', () => {
+        openMaterialRequestModal({
+          reference: item.reference,
+          description: item.description
+        });
+      });
+    }
+
+    actionCell.appendChild(button);
     el.warehouseStockBody.appendChild(tr);
   });
 }
@@ -1626,27 +1663,244 @@ function renderWarehouseZones() {
   });
 }
 
-function openMaterialRequestModal() {
+function materialRequestCatalog(warehouseId) {
+  const grouped = new Map();
+
+  state.warehouseStock
+    .filter(item => item.warehouseId === warehouseId)
+    .forEach(item => {
+      const reference = String(item.reference || '').trim();
+      const description = String(item.description || '').trim();
+      const key = (reference || description).toLowerCase();
+      if (!key) return;
+
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          key,
+          reference,
+          description,
+          unit: item.unit || '',
+          available: 0,
+          quarantine: 0,
+          zones: new Set(),
+          quarantineZones: new Set()
+        });
+      }
+
+      const material = grouped.get(key);
+      const qty = Number(item.quantity) || 0;
+
+      if (item.status === 'QUARANTINE') {
+        material.quarantine += qty;
+        if (item.zoneId) material.quarantineZones.add(item.zoneId);
+      } else {
+        material.available += qty;
+        if (item.zoneId) material.zones.add(item.zoneId);
+      }
+    });
+
+  return Array.from(grouped.values())
+    .map(item => ({
+      ...item,
+      zones: Array.from(item.zones).sort(),
+      quarantineZones: Array.from(item.quarantineZones).sort()
+    }))
+    .sort((a, b) =>
+      String(a.description || a.reference).localeCompare(
+        String(b.description || b.reference),
+        'es',
+        { sensitivity: 'base' }
+      )
+    );
+}
+
+function refreshMaterialRequestFinder() {
+  const warehouseId = el.materialRequestWarehouse.value || state.selectedWarehouseId;
+  const catalog = materialRequestCatalog(warehouseId);
+  const currentZone = el.materialRequestZoneFilter.value;
+
+  const zones = Array.from(new Set(
+    catalog.flatMap(item => item.zones)
+  )).sort();
+
+  el.materialRequestZoneFilter.innerHTML =
+    '<option value="">Todas las zonas</option>' +
+    zones.map(zone => `<option value="${esc(zone)}">${esc(zone)}</option>`).join('');
+
+  if (zones.includes(currentZone)) {
+    el.materialRequestZoneFilter.value = currentZone;
+  }
+
+  renderMaterialRequestResults();
+}
+
+function renderMaterialRequestResults() {
+  if (state.materialRequestSelection) {
+    el.materialRequestResults.innerHTML = '';
+    return;
+  }
+
+  const warehouseId = el.materialRequestWarehouse.value || state.selectedWarehouseId;
+  const query = String(el.materialRequestSearch.value || '').trim().toLowerCase();
+  const zone = el.materialRequestZoneFilter.value;
+
+  let rows = materialRequestCatalog(warehouseId)
+    .filter(item => {
+      const haystack = `${item.reference} ${item.description}`.toLowerCase();
+      const matchesQuery = !query || haystack.includes(query);
+      const matchesZone = !zone || item.zones.includes(zone);
+      return matchesQuery && matchesZone;
+    });
+
+  if (!query && !zone) rows = rows.slice(0, 8);
+  else rows = rows.slice(0, 20);
+
+  el.materialRequestResults.innerHTML = '';
+
+  if (!rows.length) {
+    el.materialRequestResults.innerHTML =
+      '<div class="material-search-empty">No hay materiales que coincidan con la búsqueda.</div>';
+    return;
+  }
+
+  rows.forEach(item => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'material-search-item';
+    button.disabled = item.available <= 0;
+
+    button.innerHTML = `
+      <div>
+        <strong>${esc(item.reference || 'Sin referencia')}</strong>
+        <span>${esc(item.description || 'Sin descripción')}</span>
+        <small>${item.zones.length ? esc(item.zones.join(' · ')) : 'Sin ubicación disponible'}</small>
+      </div>
+      <div class="material-search-stock ${item.available <= 0 ? 'empty' : ''}">
+        <strong>${esc(item.available)} ${esc(item.unit || 'ud')}</strong>
+        <span>disponibles</span>
+        ${item.quarantine > 0 ? `<small>${esc(item.quarantine)} en cuarentena</small>` : ''}
+      </div>
+    `;
+
+    if (item.available > 0) {
+      button.addEventListener('click', () => selectMaterialForRequest(item));
+    }
+
+    el.materialRequestResults.appendChild(button);
+  });
+}
+
+function selectMaterialForRequest(item) {
+  state.materialRequestSelection = item;
+
+  el.materialRequestReference.value = item.reference || '';
+  el.materialRequestDescription.value = item.description || '';
+  el.materialRequestSelectedTitle.textContent = item.reference || 'Sin referencia';
+  el.materialRequestSelectedDescription.textContent = item.description || '';
+  el.materialRequestAvailable.textContent = `${item.available} ${item.unit || 'ud'}`;
+  el.materialRequestZones.textContent = item.zones.join(' · ') || '—';
+  el.materialRequestQuarantine.textContent = `${item.quarantine} ${item.unit || 'ud'}`;
+  el.materialRequestSelected.classList.remove('hidden');
+  el.materialRequestResults.innerHTML = '';
+
+  el.materialRequestQuantity.disabled = false;
+  el.materialRequestQuantity.max = String(item.available);
+  el.materialRequestQuantity.placeholder = `Máximo ${item.available}`;
+  el.materialRequestQuantityHint.textContent =
+    `Stock disponible para solicitar: ${item.available} ${item.unit || 'ud'}.`;
+  el.submitMaterialRequestBtn.disabled = false;
+  clearStatus(el.materialRequestStatus);
+  el.materialRequestQuantity.focus();
+}
+
+function clearMaterialRequestSelection() {
+  state.materialRequestSelection = null;
+  el.materialRequestReference.value = '';
+  el.materialRequestDescription.value = '';
+  el.materialRequestSelected.classList.add('hidden');
+  el.materialRequestQuantity.value = '';
+  el.materialRequestQuantity.disabled = true;
+  el.materialRequestQuantity.removeAttribute('max');
+  el.materialRequestQuantity.placeholder = 'Selecciona primero un material';
+  el.materialRequestQuantityHint.textContent = '';
+  el.submitMaterialRequestBtn.disabled = true;
+  clearStatus(el.materialRequestStatus);
+  renderMaterialRequestResults();
+  el.materialRequestSearch.focus();
+}
+
+function openMaterialRequestModal(prefill = null) {
   if (!state.warehouses.length) return;
 
   el.materialRequestForm.reset();
+  clearStatus(el.materialRequestStatus);
+  state.materialRequestSelection = null;
+
   el.materialRequestWarehouse.value = state.selectedWarehouseId || state.warehouses[0].id;
+  el.materialRequestSelected.classList.add('hidden');
+  el.materialRequestQuantity.disabled = true;
+  el.submitMaterialRequestBtn.disabled = true;
   el.materialRequestModal.classList.remove('hidden');
+
+  refreshMaterialRequestFinder();
+
+  if (prefill) {
+    const catalog = materialRequestCatalog(el.materialRequestWarehouse.value);
+    const match = catalog.find(item =>
+      String(item.reference || '') === String(prefill.reference || '') &&
+      String(item.description || '') === String(prefill.description || '')
+    ) || catalog.find(item =>
+      String(item.reference || '') === String(prefill.reference || '')
+    );
+
+    if (match && match.available > 0) {
+      selectMaterialForRequest(match);
+      return;
+    }
+  }
+
+  el.materialRequestSearch.focus();
 }
 
 function closeMaterialRequestModal() {
   el.materialRequestModal.classList.add('hidden');
+  state.materialRequestSelection = null;
 }
 
 el.materialRequestForm.addEventListener('submit', event => {
   event.preventDefault();
 
+  const selected = state.materialRequestSelection;
+  if (!selected) {
+    setStatus(el.materialRequestStatus, 'Selecciona un material del stock.', 'error');
+    return;
+  }
+
+  const quantity = Number(el.materialRequestQuantity.value);
+
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    setStatus(el.materialRequestStatus, 'Indica una cantidad válida.', 'error');
+    return;
+  }
+
+  if (quantity > selected.available) {
+    setStatus(
+      el.materialRequestStatus,
+      `La cantidad solicitada supera el stock disponible (${selected.available} ${selected.unit || 'ud'}).`,
+      'error'
+    );
+    return;
+  }
+
+  el.submitMaterialRequestBtn.disabled = true;
+  setStatus(el.materialRequestStatus, 'Enviando solicitud…');
+
   postToBackend('warehouseRequestCreate', {
     projectId: state.currentProject.id,
     warehouseId: el.materialRequestWarehouse.value,
-    reference: el.materialRequestReference.value,
-    description: el.materialRequestDescription.value,
-    quantity: el.materialRequestQuantity.value,
+    reference: selected.reference,
+    description: selected.description,
+    quantity: quantity,
     notes: el.materialRequestNotes.value
   });
 });
@@ -1673,7 +1927,12 @@ el.warehouseZoneForm.addEventListener('submit', event => {
 
 function handleWarehouseMutation(payload) {
   if (!payload?.ok) {
-    setStatus(el.warehouseStatus, payload?.message || 'No se ha podido guardar.', 'error');
+    if (!el.materialRequestModal.classList.contains('hidden')) {
+      el.submitMaterialRequestBtn.disabled = !state.materialRequestSelection;
+      setStatus(el.materialRequestStatus, payload?.message || 'No se ha podido enviar la solicitud.', 'error');
+    } else {
+      setStatus(el.warehouseStatus, payload?.message || 'No se ha podido guardar.', 'error');
+    }
     return;
   }
 
@@ -1789,6 +2048,39 @@ el.closeMaterialRequestModalBtn.addEventListener('click', closeMaterialRequestMo
 el.cancelMaterialRequestBtn.addEventListener('click', closeMaterialRequestModal);
 el.materialRequestModal.querySelector('.modal-backdrop')
   .addEventListener('click', closeMaterialRequestModal);
+
+el.materialRequestSearch.addEventListener('input', renderMaterialRequestResults);
+el.materialRequestZoneFilter.addEventListener('change', renderMaterialRequestResults);
+el.clearMaterialRequestSelectionBtn.addEventListener('click', clearMaterialRequestSelection);
+el.materialRequestWarehouse.addEventListener('change', () => {
+  clearMaterialRequestSelection();
+
+  const warehouseId = el.materialRequestWarehouse.value;
+  if (warehouseId !== state.selectedWarehouseId) {
+    state.selectedWarehouseId = warehouseId;
+    el.warehouseSelect.value = warehouseId;
+    setStatus(el.materialRequestStatus, 'Cargando stock del almacén…');
+    loadWarehouseData();
+  } else {
+    refreshMaterialRequestFinder();
+  }
+});
+
+el.materialRequestQuantity.addEventListener('input', () => {
+  const selected = state.materialRequestSelection;
+  if (!selected) return;
+
+  const quantity = Number(el.materialRequestQuantity.value);
+  if (Number.isFinite(quantity) && quantity > selected.available) {
+    setStatus(
+      el.materialRequestStatus,
+      `Máximo disponible: ${selected.available} ${selected.unit || 'ud'}.`,
+      'error'
+    );
+  } else {
+    clearStatus(el.materialRequestStatus);
+  }
+});
 
 el.newZoneBtn.addEventListener('click', openWarehouseZoneModal);
 el.closeWarehouseZoneModalBtn.addEventListener('click', closeWarehouseZoneModal);
