@@ -1435,7 +1435,7 @@ function handleWarehouseBootstrap(payload) {
     loadWarehouseData();
   } else {
     el.warehouseStockBody.innerHTML =
-      '<tr><td colspan="5">No tienes almacenes asignados.</td></tr>';
+      '<tr><td colspan="5">No hay almacenes configurados para este proyecto.</td></tr>';
   }
 
   renderWarehouseZones();
@@ -1475,11 +1475,8 @@ function loadWarehouseData() {
     : '';
 
   postToBackend('warehouseStockList', {
+    projectId: state.currentProject.id,
     warehouseId: state.selectedWarehouseId
-  });
-
-  postToBackend('warehouseRequestList', {
-    projectId: state.currentProject.id
   });
 
   renderWarehouseZones();
@@ -1497,6 +1494,11 @@ function handleWarehouseStock(payload) {
 
   renderWarehouseStock();
   renderWarehouseSummary();
+
+  // El frontend usa un único iframe oculto: serializamos las llamadas.
+  postToBackend('warehouseRequestList', {
+    projectId: state.currentProject.id
+  });
 }
 
 function handleWarehouseRequests(payload) {
