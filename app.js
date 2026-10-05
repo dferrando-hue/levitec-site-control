@@ -19,6 +19,8 @@ const state = {
   workflowRequest: null,
   workflowSubmitting: false,
   deliveries: [],
+  constructionMilestones: [],
+  selectedConstructionMilestone: null,
   deliveryFilter: 'ALL',
   deliveryCalendarDate: new Date(),
   selectedDelivery: null,
@@ -141,6 +143,21 @@ const el = {
   deliveryLateCount: $('deliveryLateCount'),
   deliveryReceivedCount: $('deliveryReceivedCount'),
   deliveryList: $('deliveryList'),
+  newMilestoneBtn: $('newMilestoneBtn'),
+  constructionMilestoneList: $('constructionMilestoneList'),
+
+  constructionMilestoneModal: $('constructionMilestoneModal'),
+  closeConstructionMilestoneModalBtn: $('closeConstructionMilestoneModalBtn'),
+  constructionMilestoneModalTitle: $('constructionMilestoneModalTitle'),
+  constructionMilestoneForm: $('constructionMilestoneForm'),
+  constructionMilestoneId: $('constructionMilestoneId'),
+  constructionMilestoneTitle: $('constructionMilestoneTitle'),
+  constructionMilestoneDate: $('constructionMilestoneDate'),
+  constructionMilestoneType: $('constructionMilestoneType'),
+  constructionMilestoneDiscipline: $('constructionMilestoneDiscipline'),
+  constructionMilestoneNotes: $('constructionMilestoneNotes'),
+  deleteConstructionMilestoneBtn: $('deleteConstructionMilestoneBtn'),
+  cancelConstructionMilestoneBtn: $('cancelConstructionMilestoneBtn'),
 
   deliveryModal: $('deliveryModal'),
   closeDeliveryModalBtn: $('closeDeliveryModalBtn'),
@@ -150,6 +167,9 @@ const el = {
   deliveryPo: $('deliveryPo'),
   deliveryFamily: $('deliveryFamily'),
   deliveryDestination: $('deliveryDestination'),
+  deliveryMilestoneSelect: $('deliveryMilestoneSelect'),
+  deliveryMilestoneOffset: $('deliveryMilestoneOffset'),
+  saveDeliveryMilestoneBtn: $('saveDeliveryMilestoneBtn'),
   deliveryMaterials: $('deliveryMaterials'),
   deliveryDateInput: $('deliveryDateInput'),
   deliveryChangeReason: $('deliveryChangeReason'),
@@ -353,6 +373,9 @@ window.addEventListener('message', event => {
 
     case 'deliveryUpdateDate':
     case 'deliveryConfirmReceipt':
+    case 'deliveryLinkMilestone':
+    case 'constructionMilestoneSave':
+    case 'constructionMilestoneDelete':
       handleDeliveryMutation(msg.payload);
       break;
 
@@ -1190,8 +1213,10 @@ function handleDeliveryList(payload) {
   }
 
   state.deliveries = Array.isArray(payload.deliveries) ? payload.deliveries : [];
+  state.constructionMilestones = Array.isArray(payload.milestones) ? payload.milestones : [];
   clearStatus(el.deliveryStatus);
   renderDeliverySummary();
+  renderConstructionMilestones();
   renderDeliveryCalendar();
   renderDeliveryList();
 }
@@ -1244,6 +1269,7 @@ function renderDeliveryCalendar() {
     ].join('-');
 
     const items = state.deliveries.filter(item => item.expectedDeliveryDate === iso);
+    const milestones = state.constructionMilestones.filter(item => item.date === iso);
     const classes = ['calendar-day'];
     if (date.getMonth() !== month) classes.push('outside');
     if (iso === todayIso()) classes.push('today');
@@ -1251,6 +1277,12 @@ function renderDeliveryCalendar() {
     html += `
       <div class="${classes.join(' ')}">
         <div class="calendar-day-number">${date.getDate()}</div>
+        ${milestones.map(milestone => `
+          <button class="calendar-milestone" type="button" data-milestone-id="${esc(milestone.milestoneId)}">
+            <strong>◆ ${esc(milestone.title)}</strong>
+            <span>${esc(milestone.type || 'HITO')}</span>
+          </button>
+        `).join('')}
         ${items.map(item => {
           const eventClass = isDeliveryReceived(item) ? 'received' : isDeliveryLate(item) ? 'late' : '';
           return `
@@ -1270,6 +1302,13 @@ function renderDeliveryCalendar() {
     button.addEventListener('click', () => {
       const item = state.deliveries.find(d => d.requestId === button.dataset.requestId);
       if (item) openDeliveryModal(item);
+    });
+  });
+
+  el.deliveryCalendar.querySelectorAll('.calendar-milestone').forEach(button => {
+    button.addEventListener('click', () => {
+      const milestone = state.constructionMilestones.find(m => m.milestoneId === button.dataset.milestoneId);
+      if (milestone) openConstructionMilestoneModal(milestone);
     });
   });
 }
@@ -1301,6 +1340,7 @@ function renderDeliveryList() {
       </div>
       <div class="delivery-data"><span>Familia</span><strong>${esc(item.family || '—')}</strong></div>
       <div class="delivery-data"><span>Destino</span><strong>${esc(item.destination || '—')}</strong></div>
+      <div class="delivery-data"><span>Hito</span><strong>${esc(item.milestoneTitle || 'Sin referencia')}</strong><small>${esc(deliveryMilestoneDeltaText(item))}</small></div>
       <div><span class="delivery-date-pill ${dateClass}">${esc(item.expectedDeliveryDate || 'Sin fecha')}</span></div>
       <button class="btn btn-secondary btn-sm open-delivery-btn" type="button">Abrir</button>
     `;
@@ -1319,6 +1359,15 @@ function openDeliveryModal(item) {
   el.deliveryPo.textContent = item.poNumber || 'Pendiente';
   el.deliveryFamily.textContent = item.family || '—';
   el.deliveryDestination.textContent = [item.destinationType,item.destination].filter(Boolean).join(' · ') || '—';
+
+  el.deliveryMilestoneSelect.innerHTML =
+    '<option value="">Sin hito asociado</option>' +
+    state.constructionMilestones.map(m => `
+      <option value="${esc(m.milestoneId)}">${esc(m.date)} · ${esc(m.title)}</option>
+    `).join('');
+  el.deliveryMilestoneSelect.value = item.milestoneId || '';
+  updateDeliveryMilestoneOffset();
+
   el.deliveryDateInput.value = item.expectedDeliveryDate || '';
   el.deliveryChangeReason.value = '';
   el.deliveryReceiptStatus.value = item.receiptStatus === 'PARCIAL' ? 'PARCIAL' : 'COMPLETA';
@@ -1338,6 +1387,174 @@ function openDeliveryModal(item) {
   el.deliveryModal.classList.remove('hidden');
 }
 
+
+function dateToUtcDays_(iso) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso || ''))) return null;
+  const [y,m,d] = iso.split('-').map(Number);
+  return Math.floor(Date.UTC(y,m-1,d) / 86400000);
+}
+
+function deliveryMilestoneDelta_(deliveryDate, milestoneDate) {
+  const a = dateToUtcDays_(deliveryDate);
+  const b = dateToUtcDays_(milestoneDate);
+  if (a === null || b === null) return null;
+  return b - a; // positivo = entrega antes del hito
+}
+
+function deliveryMilestoneDeltaText(item) {
+  if (!item?.milestoneId || !item?.milestoneDate) return '';
+  const days = deliveryMilestoneDelta_(item.expectedDeliveryDate, item.milestoneDate);
+  if (days === null) return '';
+  if (days > 0) return `${days} día${days === 1 ? '' : 's'} antes del hito`;
+  if (days < 0) return `${Math.abs(days)} día${Math.abs(days) === 1 ? '' : 's'} después del hito`;
+  return 'Mismo día que el hito';
+}
+
+function updateDeliveryMilestoneOffset() {
+  if (!state.selectedDelivery) return;
+
+  const milestone = state.constructionMilestones.find(
+    m => m.milestoneId === el.deliveryMilestoneSelect.value
+  );
+
+  el.deliveryMilestoneOffset.className = 'milestone-offset neutral';
+
+  if (!milestone) {
+    el.deliveryMilestoneOffset.textContent = 'Sin referencia constructiva.';
+    return;
+  }
+
+  const days = deliveryMilestoneDelta_(state.selectedDelivery.expectedDeliveryDate, milestone.date);
+
+  if (days === null) {
+    el.deliveryMilestoneOffset.textContent = 'No se puede calcular el margen.';
+    return;
+  }
+
+  if (days > 0) {
+    el.deliveryMilestoneOffset.className = 'milestone-offset positive';
+    el.deliveryMilestoneOffset.textContent =
+      `Llegada prevista ${days} día${days === 1 ? '' : 's'} antes del hito (${milestone.date}).`;
+  } else if (days < 0) {
+    el.deliveryMilestoneOffset.className = 'milestone-offset negative';
+    el.deliveryMilestoneOffset.textContent =
+      `Atención: llegada prevista ${Math.abs(days)} día${Math.abs(days) === 1 ? '' : 's'} después del hito (${milestone.date}).`;
+  } else {
+    el.deliveryMilestoneOffset.className = 'milestone-offset warning';
+    el.deliveryMilestoneOffset.textContent = `Llegada prevista el mismo día del hito (${milestone.date}).`;
+  }
+}
+
+function saveDeliveryMilestone() {
+  if (!state.selectedDelivery || state.deliverySubmitting) return;
+
+  setDeliverySubmitting(true);
+  postToBackend('deliveryLinkMilestone', {
+    requestId: state.selectedDelivery.requestId,
+    milestoneId: el.deliveryMilestoneSelect.value
+  });
+}
+
+function renderConstructionMilestones() {
+  el.constructionMilestoneList.innerHTML = '';
+
+  if (!state.constructionMilestones.length) {
+    el.constructionMilestoneList.innerHTML = `
+      <div class="empty-state milestone-empty">
+        Todavía no hay hitos constructivos. Añade fechas como L3, Mechanical Complete, commissioning, PFHO o handover para referenciar las entregas.
+      </div>`;
+    return;
+  }
+
+  state.constructionMilestones.forEach(milestone => {
+    const linked = state.deliveries.filter(d => d.milestoneId === milestone.milestoneId);
+    const late = linked.filter(d => {
+      const delta = deliveryMilestoneDelta_(d.expectedDeliveryDate, milestone.date);
+      return delta !== null && delta < 0 && !isDeliveryReceived(d);
+    }).length;
+
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'milestone-card';
+    card.innerHTML = `
+      <div class="milestone-card-date">
+        <strong>${esc(milestone.date || '—')}</strong>
+        <span>${esc(milestone.type || 'CONSTRUCTIVO')}</span>
+      </div>
+      <div class="milestone-card-main">
+        <strong>${esc(milestone.title || 'Hito')}</strong>
+        <span>${esc(milestone.discipline || 'GENERAL')}${milestone.notes ? ' · ' + esc(milestone.notes) : ''}</span>
+      </div>
+      <div class="milestone-card-metrics">
+        <span><strong>${linked.length}</strong> deliveries</span>
+        ${late ? `<span class="milestone-risk"><strong>${late}</strong> después del hito</span>` : '<span class="milestone-ok">Sin conflictos</span>'}
+      </div>
+    `;
+    card.addEventListener('click', () => openConstructionMilestoneModal(milestone));
+    el.constructionMilestoneList.appendChild(card);
+  });
+}
+
+function openConstructionMilestoneModal(milestone = null) {
+  state.selectedConstructionMilestone = milestone;
+
+  el.constructionMilestoneModalTitle.textContent =
+    milestone ? 'Editar hito constructivo' : 'Nuevo hito constructivo';
+
+  el.constructionMilestoneId.value = milestone?.milestoneId || '';
+  el.constructionMilestoneTitle.value = milestone?.title || '';
+  el.constructionMilestoneDate.value = milestone?.date || '';
+  el.constructionMilestoneType.value = milestone?.type || 'CONSTRUCTIVO';
+  el.constructionMilestoneDiscipline.value = milestone?.discipline || '';
+  el.constructionMilestoneNotes.value = milestone?.notes || '';
+
+  el.deleteConstructionMilestoneBtn.classList.toggle('hidden', !milestone);
+  el.constructionMilestoneModal.classList.remove('hidden');
+}
+
+function closeConstructionMilestoneModal() {
+  el.constructionMilestoneModal.classList.add('hidden');
+  state.selectedConstructionMilestone = null;
+  el.constructionMilestoneForm.reset();
+  el.constructionMilestoneId.value = '';
+  el.deleteConstructionMilestoneBtn.classList.add('hidden');
+}
+
+function saveConstructionMilestone(event) {
+  event.preventDefault();
+  if (!state.currentProject || state.deliverySubmitting) return;
+
+  const title = el.constructionMilestoneTitle.value.trim();
+  const date = el.constructionMilestoneDate.value;
+
+  if (!title || !date) {
+    setStatus(el.deliveryStatus, 'Indica nombre y fecha del hito.', 'error');
+    return;
+  }
+
+  setDeliverySubmitting(true);
+  postToBackend('constructionMilestoneSave', {
+    projectId: state.currentProject.id,
+    milestoneId: el.constructionMilestoneId.value,
+    title: title,
+    date: date,
+    type: el.constructionMilestoneType.value,
+    discipline: el.constructionMilestoneDiscipline.value,
+    notes: el.constructionMilestoneNotes.value.trim()
+  });
+}
+
+function deleteConstructionMilestone() {
+  if (!state.currentProject || !state.selectedConstructionMilestone || state.deliverySubmitting) return;
+  if (!window.confirm(`¿Eliminar el hito "${state.selectedConstructionMilestone.title}"? Las deliveries vinculadas quedarán sin referencia.`)) return;
+
+  setDeliverySubmitting(true);
+  postToBackend('constructionMilestoneDelete', {
+    projectId: state.currentProject.id,
+    milestoneId: state.selectedConstructionMilestone.milestoneId
+  });
+}
+
 function closeDeliveryModal() {
   el.deliveryModal.classList.add('hidden');
   state.selectedDelivery = null;
@@ -1347,6 +1564,7 @@ function closeDeliveryModal() {
 function setDeliverySubmitting(value) {
   state.deliverySubmitting = value;
   el.saveDeliveryDateBtn.disabled = value;
+  el.saveDeliveryMilestoneBtn.disabled = value;
   el.confirmDeliveryReceiptBtn.disabled = value;
 }
 
@@ -1400,8 +1618,9 @@ function handleDeliveryMutation(payload) {
     return;
   }
 
-  closeDeliveryModal();
-  setStatus(el.deliveryStatus,payload.message || 'Entrega actualizada.','success');
+  if (!el.deliveryModal.classList.contains('hidden')) closeDeliveryModal();
+  if (!el.constructionMilestoneModal.classList.contains('hidden')) closeConstructionMilestoneModal();
+  setStatus(el.deliveryStatus,payload.message || 'Planificación actualizada.','success');
   postToBackend('deliveryList',{projectId:state.currentProject.id});
 }
 
@@ -2024,8 +2243,17 @@ document.querySelectorAll('.delivery-filter').forEach(button => {
   });
 });
 
+el.newMilestoneBtn.addEventListener('click', () => openConstructionMilestoneModal());
+el.closeConstructionMilestoneModalBtn.addEventListener('click', closeConstructionMilestoneModal);
+el.cancelConstructionMilestoneBtn.addEventListener('click', closeConstructionMilestoneModal);
+el.constructionMilestoneModal.querySelector('.modal-backdrop').addEventListener('click', closeConstructionMilestoneModal);
+el.constructionMilestoneForm.addEventListener('submit', saveConstructionMilestone);
+el.deleteConstructionMilestoneBtn.addEventListener('click', deleteConstructionMilestone);
+
 el.closeDeliveryModalBtn.addEventListener('click', closeDeliveryModal);
 el.deliveryModal.querySelector('.modal-backdrop').addEventListener('click', closeDeliveryModal);
+el.deliveryMilestoneSelect.addEventListener('change', updateDeliveryMilestoneOffset);
+el.saveDeliveryMilestoneBtn.addEventListener('click', saveDeliveryMilestone);
 el.saveDeliveryDateBtn.addEventListener('click', saveDeliveryDate);
 el.confirmDeliveryReceiptBtn.addEventListener('click', confirmDeliveryReceipt);
 

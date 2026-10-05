@@ -1,36 +1,69 @@
-LEVITEC SITE CONTROL · Warehouse request UX v0.6.2
-=====================================================
+LEVITEC SITE CONTROL v0.7.0 · DELIVERY + HITOS CONSTRUCTIVOS
+============================================================
 
-Esta actualización SOLO modifica el frontend de Site Control.
-No toca el backend de Warehouse ni el bridge que ya está funcionando.
-
-Sustituir en el repositorio de LEVITEC SITE CONTROL:
-- index.html
-- app.js
-- styles.css
-
-Commit sugerido:
-Frontend v0.6.2 - Guided warehouse material request
-
-Después:
-1. Esperar a que GitHub Pages publique.
-2. Ctrl + F5.
-3. Abrir un proyecto > Almacenes.
+OBJETIVO
+--------
+Añade planificación constructiva al módulo Deliveries para poder referenciar
+la llegada de equipos contra hitos reales de obra.
 
 NOVEDADES
 ---------
-- + Solicitar material ya no exige memorizar la referencia.
-- Buscador por referencia o descripción.
-- Filtro por zona.
-- Resultados con stock disponible, zonas y cuarentena.
-- Selección de material con ficha resumen.
-- La cantidad no puede superar el stock disponible.
-- Cuarentena queda excluida del stock solicitabile.
-- Botón Solicitar directamente desde cada línea de stock utilizable.
-- La selección desde la tabla abre el formulario ya precargado.
+- Crear/editar/eliminar hitos constructivos por proyecto.
+- Hitos visibles dentro del calendario de Deliveries.
+- Tipos: Constructivo, Commissioning, PFHO, Energización, Handover y Otro.
+- Disciplina: General, Mechanical o Electrical.
+- Asociar cada delivery a un hito constructivo.
+- Cálculo automático del margen:
+    * X días antes del hito.
+    * mismo día.
+    * X días después del hito.
+- En la lista de hitos se ve cuántas deliveries están vinculadas y si existe
+  alguna llegada prevista después del hito.
+- La tabla de deliveries muestra el hito asociado y su margen.
+- Nueva hoja automática: HITOS_CONSTRUCTIVOS.
+- Nueva columna automática en SOLICITUDES_PEDIDO: HITO_ID.
 
-NO CAMBIAR
+IMPORTANTE
 ----------
-- Backend Warehouse.
-- Propiedades WAREHOUSE_API_URL / WAREHOUSE_API_KEY.
-- Backend Site Control.
+Esta versión NO toca Warehouse.
+No ejecutar setup() de Warehouse.
+No modificar las propiedades WAREHOUSE_API_URL / WAREHOUSE_API_KEY.
+
+INSTALACIÓN
+-----------
+1. APPS SCRIPT DE SITE CONTROL
+   Sustituir el Code.gs actual por el Code.gs de este paquete.
+   Guardar.
+   Implementar > Gestionar implementaciones > Editar > Nueva versión.
+   Descripción sugerida:
+   CORE v1.1.0 - Delivery Construction Milestones
+
+2. GITHUB · levitec-site-control
+   Sustituir:
+   - index.html
+   - app.js
+   - styles.css
+
+   Commit sugerido:
+   Frontend v0.7.0 - Delivery Construction Milestones
+
+3. RECARGA
+   Esperar a GitHub Pages y hacer Ctrl+F5.
+
+PRIMER USO
+----------
+Entrar en un proyecto > Deliveries.
+Pulsar '+ Hito constructivo'.
+
+La hoja HITOS_CONSTRUCTIVOS se crea automáticamente al cargar Deliveries
+con el backend nuevo. La columna HITO_ID también se añade automáticamente a
+SOLICITUDES_PEDIDO sin borrar datos existentes.
+
+EJEMPLOS DE HITOS
+-----------------
+- L3 - Mechanical Complete
+- L4 - Ready for Commissioning
+- PFHO
+- Energización sala MV
+- Cierre falso suelo
+- Handover de fase

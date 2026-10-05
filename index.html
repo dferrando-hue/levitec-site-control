@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=0.6.2">
+  <link rel="stylesheet" href="styles.css?v=0.7.0">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -163,10 +163,11 @@
   <div class="section-toolbar deliveries-toolbar">
     <button id="backFromDeliveriesBtn" class="btn btn-secondary" type="button">← Proyecto</button>
     <div>
-      <div class="eyebrow">DELIVERIES</div>
-      <h1>Calendario de entregas</h1>
+      <div class="eyebrow">DELIVERIES · CONSTRUCCIÓN</div>
+      <h1>Entregas e hitos constructivos</h1>
       <p id="deliveriesProjectSubtitle" class="muted"></p>
     </div>
+    <button id="newMilestoneBtn" class="btn btn-primary" type="button">+ Hito constructivo</button>
     <div class="calendar-nav">
       <button id="prevMonthBtn" class="btn btn-secondary" type="button">←</button>
       <strong id="calendarMonthLabel"></strong>
@@ -185,6 +186,17 @@
 
   <div class="calendar-shell">
     <div id="deliveryCalendar" class="delivery-calendar"></div>
+  </div>
+
+  <div class="milestone-section">
+    <div class="milestone-section-head">
+      <div>
+        <div class="eyebrow">PLANIFICACIÓN DE OBRA</div>
+        <h2>Hitos constructivos</h2>
+        <p class="muted">Referencia las llegadas de equipos contra fechas clave de construcción.</p>
+      </div>
+    </div>
+    <div id="constructionMilestoneList" class="milestone-list"></div>
   </div>
 
   <div class="delivery-list-head">
@@ -586,6 +598,69 @@
   </div>
 </div>
 
+<div id="constructionMilestoneModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">PLANIFICACIÓN DE OBRA</div>
+        <h2 id="constructionMilestoneModalTitle">Nuevo hito constructivo</h2>
+        <p class="muted modal-sub">Fecha clave contra la que referenciar la llegada de equipos.</p>
+      </div>
+      <button id="closeConstructionMilestoneModalBtn" class="icon-btn" type="button">×</button>
+    </div>
+
+    <form id="constructionMilestoneForm" class="form-grid">
+      <input id="constructionMilestoneId" type="hidden">
+
+      <label class="field-span-2">
+        <span>Nombre del hito *</span>
+        <input id="constructionMilestoneTitle" type="text" maxlength="160" required
+          placeholder="Ej. L3 - Mechanical Complete / Inicio commissioning">
+      </label>
+
+      <label>
+        <span>Fecha *</span>
+        <input id="constructionMilestoneDate" type="date" required>
+      </label>
+
+      <label>
+        <span>Tipo</span>
+        <select id="constructionMilestoneType">
+          <option value="CONSTRUCTIVO">Constructivo</option>
+          <option value="COMMISSIONING">Commissioning</option>
+          <option value="PFHO">PFHO</option>
+          <option value="ENERGIZACION">Energización</option>
+          <option value="HANDOVER">Handover</option>
+          <option value="OTRO">Otro</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Disciplina</span>
+        <select id="constructionMilestoneDiscipline">
+          <option value="">General</option>
+          <option value="MECHANICAL">Mechanical</option>
+          <option value="ELECTRICAL">Electrical</option>
+        </select>
+      </label>
+
+      <label class="field-span-2">
+        <span>Notas</span>
+        <textarea id="constructionMilestoneNotes" rows="4"
+          placeholder="Alcance, condición previa, fase, zona, observaciones..."></textarea>
+      </label>
+
+      <div class="modal-actions field-span-2">
+        <button id="deleteConstructionMilestoneBtn" class="btn btn-danger hidden" type="button">Eliminar</button>
+        <span class="modal-actions-spacer"></span>
+        <button id="cancelConstructionMilestoneBtn" class="btn btn-secondary" type="button">Cancelar</button>
+        <button class="btn btn-primary" type="submit">Guardar hito</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div id="deliveryModal" class="modal hidden">
   <div class="modal-backdrop"></div>
   <div class="modal-card modal-wide">
@@ -610,6 +685,18 @@
       </section>
 
       <section class="delivery-actions-panel">
+        <div class="delivery-action-block milestone-link-block">
+          <div class="eyebrow">HITO DE REFERENCIA</div>
+          <label>
+            <span>Hito constructivo</span>
+            <select id="deliveryMilestoneSelect">
+              <option value="">Sin hito asociado</option>
+            </select>
+          </label>
+          <div id="deliveryMilestoneOffset" class="milestone-offset neutral">Sin referencia constructiva.</div>
+          <button id="saveDeliveryMilestoneBtn" class="btn btn-secondary" type="button">Guardar referencia</button>
+        </div>
+
         <div class="delivery-action-block">
           <div class="eyebrow">REPROGRAMAR</div>
           <label><span>Fecha prevista de entrega</span><input id="deliveryDateInput" type="date"></label>
@@ -650,6 +737,6 @@ window.LEVITEC_CONFIG = {
 };
 </script>
 
-<script src="app.js?v=0.6.2"></script>
+<script src="app.js?v=0.7.0"></script>
 </body>
 </html>
