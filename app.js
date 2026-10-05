@@ -32,7 +32,21 @@ const state = {
   warehouseRequests: [],
   selectedWarehouseId: null,
   warehousePermissions: {},
-  materialRequestSelection: null
+  materialRequestSelection: null,
+
+  workControl: {
+    projects: [],
+    selectedProject: 'ALL',
+    currentMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+    selectedDate: new Date().toISOString().slice(0,10),
+    monthDays: [],
+    parts: [],
+    incidents: [],
+    presence: [],
+    correctionIncident: null
+  },
+
+  equipmentGlobal: []
 };
 
 const $ = id => document.getElementById(id);
@@ -41,6 +55,8 @@ const el = {
   loginView: $('loginView'),
   projectsView: $('projectsView'),
   projectView: $('projectView'),
+  workControlView: $('workControlView'),
+  equipmentGlobalView: $('equipmentGlobalView'),
   globalAdminView: $('globalAdminView'),
   purchasesView: $('purchasesView'),
   deliveriesView: $('deliveriesView'),
@@ -223,6 +239,46 @@ const el = {
   warehouseZoneName: $('warehouseZoneName'),
   warehouseZoneType: $('warehouseZoneType'),
 
+  backFromWorkControlBtn: $('backFromWorkControlBtn'),
+  workControlSubtitle: $('workControlSubtitle'),
+  workControlStatus: $('workControlStatus'),
+  refreshWorkPresenceBtn: $('refreshWorkPresenceBtn'),
+  workProjectScope: $('workProjectScope'),
+  workScopeHint: $('workScopeHint'),
+  workPresenceUpdated: $('workPresenceUpdated'),
+  workPresenceList: $('workPresenceList'),
+  workPrevMonthBtn: $('workPrevMonthBtn'),
+  workNextMonthBtn: $('workNextMonthBtn'),
+  workCalendarTitle: $('workCalendarTitle'),
+  workCalendarGrid: $('workCalendarGrid'),
+  workSelectedDateLabel: $('workSelectedDateLabel'),
+  workWorkersSummary: $('workWorkersSummary'),
+  workTasksSummary: $('workTasksSummary'),
+  workPendingSummary: $('workPendingSummary'),
+  workIncidentsSummary: $('workIncidentsSummary'),
+  workSubcontractorFilter: $('workSubcontractorFilter'),
+  workStateFilter: $('workStateFilter'),
+  workIncidentPendingCount: $('workIncidentPendingCount'),
+  workIncidentsContainer: $('workIncidentsContainer'),
+  workPartsContainer: $('workPartsContainer'),
+
+  workIncidentCorrectionModal: $('workIncidentCorrectionModal'),
+  closeWorkCorrectionModalBtn: $('closeWorkCorrectionModalBtn'),
+  cancelWorkCorrectionBtn: $('cancelWorkCorrectionBtn'),
+  saveWorkCorrectionBtn: $('saveWorkCorrectionBtn'),
+  workCorrectionIncidentText: $('workCorrectionIncidentText'),
+  workCorrectionFields: $('workCorrectionFields'),
+
+  backFromEquipmentGlobalBtn: $('backFromEquipmentGlobalBtn'),
+  refreshEquipmentGlobalBtn: $('refreshEquipmentGlobalBtn'),
+  equipmentGlobalStatus: $('equipmentGlobalStatus'),
+  equipmentGlobalCount: $('equipmentGlobalCount'),
+  equipmentPositionCount: $('equipmentPositionCount'),
+  equipmentNoPositionCount: $('equipmentNoPositionCount'),
+  equipmentGlobalSearch: $('equipmentGlobalSearch'),
+  equipmentGlobalProjectFilter: $('equipmentGlobalProjectFilter'),
+  equipmentGlobalList: $('equipmentGlobalList'),
+
   backendForm: $('backendForm'),
   backendAction: $('backendAction'),
   backendCredential: $('backendCredential'),
@@ -246,8 +302,8 @@ const DISCIPLINE_LABELS = {
 };
 
 const MODULES = [
-  {key:'site', title:'Site', icon:'S', description:'Presencia, control de trabajos e incidencias operativas.', tags:['Presencia','Trabajos','Incidencias']},
-  {key:'equipment', title:'Equipment', icon:'E', description:'Localización, disponibilidad y solicitudes de maquinaria.', tags:['Tracking','Requests','Reservas']},
+  {key:'site', title:'Control de trabajos', icon:'S', description:'Partes de obra, presencia e incidencias del sistema de fichajes.', tags:['Fichajes','Partes','Incidencias']},
+  {key:'equipment', title:'Maquinaria', icon:'E', description:'Localización global de equipos y trackers de obra.', tags:['Tracking','Global','Posición']},
   {key:'warehouse', title:'Warehouse', icon:'W', description:'Stock, solicitudes de material, recepciones y movimientos.', tags:['Stock','Solicitudes','Multi-almacén']},
   {key:'deliveries', title:'Deliveries', icon:'D', description:'Entregas previstas, calendario operativo y confirmaciones.', tags:['Calendario','Pedidos','Recepciones']},
   {key:'documents', title:'Documentación / Permisos', icon:'P', description:'Preparación interna de RFI, RAMS y E-Permits.', tags:['RFI','RAMS','E-Permits']},
@@ -261,6 +317,8 @@ function show(view) {
     el.loginView,
     el.projectsView,
     el.projectView,
+    el.workControlView,
+    el.equipmentGlobalView,
     el.globalAdminView,
     el.purchasesView,
     el.deliveriesView,
@@ -377,6 +435,34 @@ window.addEventListener('message', event => {
     case 'constructionMilestoneSave':
     case 'constructionMilestoneDelete':
       handleDeliveryMutation(msg.payload);
+      break;
+
+    case 'workControlBootstrap':
+      handleWorkControlBootstrap(msg.payload);
+      break;
+
+    case 'workControlMonth':
+      handleWorkControlMonth(msg.payload);
+      break;
+
+    case 'workControlDay':
+      handleWorkControlDay(msg.payload);
+      break;
+
+    case 'workControlPresence':
+      handleWorkControlPresence(msg.payload);
+      break;
+
+    case 'workControlUpdate':
+    case 'workControlBulkValidate':
+    case 'workControlIncidentUpdate':
+    case 'workControlIncidentCorrect':
+    case 'workControlIncidentDiscard':
+      handleWorkControlMutation(msg.payload);
+      break;
+
+    case 'equipmentLocationsGlobal':
+      handleEquipmentLocationsGlobal(msg.payload);
       break;
 
     case 'warehouseBootstrap':
@@ -530,7 +616,7 @@ function renderModules() {
       const card = document.createElement('article');
       card.className = 'module-card';
 
-      if (['purchases','deliveries','warehouse'].includes(module.key)) {
+      if (['site','equipment','purchases','deliveries','warehouse'].includes(module.key)) {
         card.classList.add('clickable');
       }
 
@@ -551,12 +637,653 @@ function renderModules() {
         card.addEventListener('click', openDeliveries);
       }
 
+      if (module.key === 'site') {
+        card.addEventListener('click', openWorkControl);
+      }
+
+      if (module.key === 'equipment') {
+        card.addEventListener('click', openEquipmentGlobal);
+      }
+
       if (module.key === 'warehouse') {
         card.addEventListener('click', openWarehouse);
       }
 
       el.modulesGrid.appendChild(card);
     });
+}
+
+
+
+/* CONTROL DE TRABAJOS · INTEGRACIÓN CONTROL HORARIO */
+function workDateKey(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth()+1).padStart(2,'0');
+  const d = String(date.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
+
+function workMonthKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
+}
+
+function openWorkControl() {
+  if (!state.currentProject) return;
+
+  const wc = state.workControl;
+  wc.currentMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  wc.selectedDate = workDateKey(new Date());
+  wc.selectedProject = state.currentProject.id;
+
+  el.workControlSubtitle.textContent =
+    `${state.currentProject.name || state.currentProject.id} · La visibilidad depende de tus proyectos autorizados en Site Control.`;
+
+  show(el.workControlView);
+  setStatus(el.workControlStatus, 'Cargando partes, incidencias y presencia…');
+
+  postToBackend('workControlBootstrap', {
+    project:wc.selectedProject,
+    month:workMonthKey(wc.currentMonth),
+    date:wc.selectedDate
+  });
+}
+
+
+function handleWorkControlBootstrap(payload) {
+  if (!payload?.ok) {
+    setStatus(el.workControlStatus, payload?.message || 'No se ha podido cargar Control de trabajos.', 'error');
+    return;
+  }
+
+  const wc = state.workControl;
+  wc.projects = Array.isArray(payload.projects) ? payload.projects : [];
+  wc.selectedProject = payload.selectedProject || wc.selectedProject;
+  wc.monthDays = payload.month?.days || [];
+  wc.parts = payload.day?.parts || [];
+  wc.incidents = payload.day?.incidents || [];
+  wc.presence = Array.isArray(payload.presence) ? payload.presence : [];
+
+  renderWorkProjectScope();
+  renderWorkPresence();
+  renderWorkCalendar();
+  renderWorkDay();
+  clearStatus(el.workControlStatus);
+}
+
+
+function renderWorkProjectScope() {
+  const wc = state.workControl;
+  const projects = wc.projects || [];
+
+  el.workProjectScope.innerHTML = '';
+
+  if (projects.length > 1) {
+    const all = document.createElement('option');
+    all.value = 'ALL';
+    all.textContent = 'Todos mis proyectos';
+    el.workProjectScope.appendChild(all);
+  }
+
+  projects.forEach(project => {
+    const option = document.createElement('option');
+    option.value = project.id;
+    option.textContent = `${project.id} · ${project.name || project.id}`;
+    el.workProjectScope.appendChild(option);
+  });
+
+  if ([...el.workProjectScope.options].some(o => o.value === wc.selectedProject)) {
+    el.workProjectScope.value = wc.selectedProject;
+  } else if (projects.length === 1) {
+    wc.selectedProject = projects[0].id;
+    el.workProjectScope.value = projects[0].id;
+  } else {
+    wc.selectedProject = 'ALL';
+    el.workProjectScope.value = 'ALL';
+  }
+
+  el.workProjectScope.disabled = projects.length <= 1;
+
+  if (projects.length <= 1) {
+    el.workScopeHint.textContent = 'Tu usuario solo tiene acceso a este proyecto.';
+  } else {
+    el.workScopeHint.textContent = 'Puedes consultar cualquiera de tus proyectos autorizados o todos en conjunto.';
+  }
+}
+
+
+function reloadWorkScope() {
+  const wc = state.workControl;
+  wc.selectedProject = el.workProjectScope.value || 'ALL';
+  setStatus(el.workControlStatus, 'Actualizando ámbito…');
+
+  postToBackend('workControlBootstrap', {
+    project:wc.selectedProject,
+    month:workMonthKey(wc.currentMonth),
+    date:wc.selectedDate
+  });
+}
+
+
+function renderWorkPresence() {
+  const rows = state.workControl.presence || [];
+  const grouped = {};
+
+  rows.forEach(row => {
+    const key = row.project || 'SIN PROYECTO';
+    (grouped[key] ||= []).push(row);
+  });
+
+  el.workPresenceList.innerHTML = '';
+
+  if (!rows.length) {
+    el.workPresenceList.innerHTML = '<div class="empty-state">No hay entradas abiertas en el ámbito seleccionado.</div>';
+  } else {
+    Object.keys(grouped).sort().forEach(project => {
+      const block = document.createElement('div');
+      block.className = 'work-presence-project';
+      block.innerHTML = `
+        <div class="work-presence-project-head">
+          <strong>${esc(project)}</strong>
+          <span>${grouped[project].length} en obra</span>
+        </div>
+        <div class="work-presence-workers">
+          ${grouped[project].map(row => `
+            <div class="work-presence-worker">
+              <strong>${esc(row.worker || row.email)}</strong>
+              <span>${esc(row.subcontractor || '')}</span>
+              <small>Entrada ${esc(row.entryTime || '')}</small>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      el.workPresenceList.appendChild(block);
+    });
+  }
+
+  el.workPresenceUpdated.textContent =
+    `Actualizado ${new Intl.DateTimeFormat('es-ES',{hour:'2-digit',minute:'2-digit'}).format(new Date())}`;
+}
+
+
+function renderWorkCalendar() {
+  const wc = state.workControl;
+  const first = new Date(wc.currentMonth.getFullYear(), wc.currentMonth.getMonth(), 1);
+  const last = new Date(wc.currentMonth.getFullYear(), wc.currentMonth.getMonth()+1, 0);
+  const startPad = (first.getDay() + 6) % 7;
+
+  el.workCalendarTitle.textContent =
+    new Intl.DateTimeFormat('es-ES',{month:'long',year:'numeric'}).format(first);
+
+  const activity = {};
+  (wc.monthDays || []).forEach(day => activity[day.date] = day);
+
+  el.workCalendarGrid.innerHTML = '';
+
+  for (let i=0;i<startPad;i++) {
+    const blank = document.createElement('div');
+    blank.className = 'work-day blank';
+    el.workCalendarGrid.appendChild(blank);
+  }
+
+  for (let day=1; day<=last.getDate(); day++) {
+    const d = new Date(first.getFullYear(), first.getMonth(), day);
+    const key = workDateKey(d);
+    const info = activity[key] || {};
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'work-day';
+    if (key === wc.selectedDate) btn.classList.add('selected');
+    if (key === workDateKey(new Date())) btn.classList.add('today');
+
+    btn.innerHTML = `
+      <span class="work-day-number">${day}</span>
+      <span class="work-day-dots">
+        ${Number(info.count || 0) ? '<i class="dot parts"></i>' : ''}
+        ${Number(info.incidents || 0) ? '<i class="dot incidents"></i>' : ''}
+      </span>
+      ${Number(info.pending || 0) ? `<small>${Number(info.pending)} pend.</small>` : ''}
+    `;
+
+    btn.addEventListener('click', () => {
+      wc.selectedDate = key;
+      renderWorkCalendar();
+      setStatus(el.workControlStatus, 'Cargando día…');
+      postToBackend('workControlDay', {
+        project:wc.selectedProject,
+        date:wc.selectedDate
+      });
+    });
+
+    el.workCalendarGrid.appendChild(btn);
+  }
+}
+
+
+function handleWorkControlMonth(payload) {
+  if (!payload?.ok) {
+    setStatus(el.workControlStatus, payload?.message || 'No se pudo cargar el mes.', 'error');
+    return;
+  }
+  state.workControl.monthDays = payload.days || [];
+  renderWorkCalendar();
+  clearStatus(el.workControlStatus);
+}
+
+
+function handleWorkControlDay(payload) {
+  if (!payload?.ok) {
+    setStatus(el.workControlStatus, payload?.message || 'No se pudo cargar el día.', 'error');
+    return;
+  }
+  state.workControl.parts = payload.parts || [];
+  state.workControl.incidents = payload.incidents || [];
+  renderWorkDay();
+  clearStatus(el.workControlStatus);
+}
+
+
+function handleWorkControlPresence(payload) {
+  if (!payload?.ok) {
+    setStatus(el.workControlStatus, payload?.message || 'No se pudo actualizar la presencia.', 'error');
+    return;
+  }
+  state.workControl.presence = payload.presence || [];
+  renderWorkPresence();
+  clearStatus(el.workControlStatus);
+}
+
+
+function workStatusLabel(status) {
+  return ({
+    PENDIENTE:'Pendiente',
+    VALIDADO:'Validado',
+    REVISAR:'Revisar',
+    RECHAZADO:'Rechazado'
+  })[status] || status || 'Pendiente';
+}
+
+
+function renderWorkDay() {
+  const wc = state.workControl;
+  const parts = wc.parts || [];
+  const incidents = wc.incidents || [];
+
+  const date = new Date(`${wc.selectedDate}T12:00:00`);
+  el.workSelectedDateLabel.textContent =
+    new Intl.DateTimeFormat('es-ES',{
+      weekday:'long',day:'numeric',month:'long',year:'numeric'
+    }).format(date);
+
+  const workers = new Set(parts.map(p => p.email || p.worker).filter(Boolean));
+  el.workWorkersSummary.textContent = workers.size;
+  el.workTasksSummary.textContent = parts.length;
+  el.workPendingSummary.textContent = parts.filter(p => p.status === 'PENDIENTE').length;
+  el.workIncidentsSummary.textContent = incidents.length;
+
+  const subs = [...new Set(parts.map(p => p.subcontractor).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+  const currentSub = el.workSubcontractorFilter.value;
+
+  el.workSubcontractorFilter.innerHTML =
+    '<option value="">Todas</option>' +
+    subs.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+
+  if (subs.includes(currentSub)) el.workSubcontractorFilter.value = currentSub;
+
+  renderWorkIncidents();
+  renderWorkParts();
+}
+
+
+function renderWorkIncidents() {
+  const incidents = state.workControl.incidents || [];
+  el.workIncidentPendingCount.textContent =
+    incidents.filter(i => i.status === 'PENDIENTE' || i.status === 'REVISAR').length;
+
+  if (!incidents.length) {
+    el.workIncidentsContainer.innerHTML =
+      '<div class="work-empty-small">No hay incidencias para este día.</div>';
+    return;
+  }
+
+  el.workIncidentsContainer.innerHTML = '';
+
+  incidents.forEach(incident => {
+    const card = document.createElement('article');
+    card.className = 'work-incident-card';
+    card.innerHTML = `
+      <div class="work-incident-head">
+        <div>
+          <strong>${esc(incident.worker || incident.email)}</strong>
+          <span>${esc(incident.project || '')} · ${esc(incident.subcontractor || '')}</span>
+        </div>
+        <span class="work-status-badge ${String(incident.status || '').toLowerCase()}">${esc(incident.status || 'PENDIENTE')}</span>
+      </div>
+      <div class="work-incident-body">
+        <strong>${esc(incident.type || 'INCIDENCIA')}</strong>
+        <p>${esc(incident.description || '')}</p>
+        ${incident.approxTime ? `<small>Hora aproximada: ${esc(incident.approxTime)}</small>` : ''}
+      </div>
+      <div class="work-card-actions">
+        ${incident.status !== 'RESUELTA' && incident.status !== 'RECHAZADA'
+          ? '<button class="btn btn-secondary incident-correct-btn" type="button">Corregir</button><button class="btn btn-secondary incident-review-btn" type="button">Marcar revisar</button><button class="btn btn-danger incident-discard-btn" type="button">Descartar</button>'
+          : ''}
+      </div>
+    `;
+
+    card.querySelector('.incident-correct-btn')?.addEventListener('click', () => openWorkCorrection(incident));
+    card.querySelector('.incident-review-btn')?.addEventListener('click', () => {
+      const resolution = window.prompt('Observación para dejar la incidencia en REVISAR:');
+      if (!resolution) return;
+      postToBackend('workControlIncidentUpdate', {
+        incidentRowNumber:incident.rowNumber,
+        incidentStatus:'REVISAR',
+        incidentResolution:resolution
+      });
+    });
+    card.querySelector('.incident-discard-btn')?.addEventListener('click', () => {
+      if (!window.confirm('¿Descartar esta incidencia?')) return;
+      postToBackend('workControlIncidentDiscard', {
+        incidentRowNumber:incident.rowNumber
+      });
+    });
+
+    el.workIncidentsContainer.appendChild(card);
+  });
+}
+
+
+function filteredWorkParts() {
+  const sub = el.workSubcontractorFilter.value;
+  const stateFilter = el.workStateFilter.value;
+
+  return (state.workControl.parts || []).filter(part => {
+    if (sub && part.subcontractor !== sub) return false;
+    if (stateFilter && part.status !== stateFilter) return false;
+    return true;
+  });
+}
+
+
+function renderWorkParts() {
+  const parts = filteredWorkParts();
+
+  if (!parts.length) {
+    el.workPartsContainer.innerHTML =
+      '<div class="empty-state">No hay partes que coincidan con los filtros.</div>';
+    return;
+  }
+
+  const groups = {};
+  parts.forEach(part => {
+    const key = `${part.project}|${part.subcontractor}|${part.worker}`;
+    (groups[key] ||= []).push(part);
+  });
+
+  el.workPartsContainer.innerHTML = '';
+
+  Object.values(groups).forEach(rows => {
+    const block = document.createElement('section');
+    block.className = 'work-part-group';
+    const first = rows[0];
+    const pendingRows = rows.filter(r => r.status === 'PENDIENTE').map(r => r.rowNumber);
+
+    block.innerHTML = `
+      <div class="work-part-group-head">
+        <div>
+          <strong>${esc(first.worker || first.email)}</strong>
+          <span>${esc(first.project || '')} · ${esc(first.subcontractor || '')}</span>
+        </div>
+        ${pendingRows.length
+          ? `<button class="btn btn-secondary btn-sm validate-group-btn" type="button">Validar pendientes (${pendingRows.length})</button>`
+          : ''}
+      </div>
+      <div class="work-part-list"></div>
+    `;
+
+    block.querySelector('.validate-group-btn')?.addEventListener('click', () => {
+      if (!window.confirm(`¿Validar ${pendingRows.length} tarea(s) pendientes de este bloque?`)) return;
+      postToBackend('workControlBulkValidate', {rowNumbers:pendingRows});
+    });
+
+    const list = block.querySelector('.work-part-list');
+
+    rows.forEach(part => {
+      const item = document.createElement('article');
+      item.className = 'work-part-card';
+      item.innerHTML = `
+        <div class="work-part-main">
+          <div class="work-part-title">${esc(part.task || 'Tarea')}</div>
+          <div class="work-part-meta">
+            ${esc(part.entryTime || '')}${part.exitTime ? '–' + esc(part.exitTime) : ''}
+            ${part.hours ? ' · ' + esc(part.hours) : ''}
+            ${part.zone ? ' · ' + esc(part.zone) : ''}
+          </div>
+          ${part.description ? `<p>${esc(part.description)}</p>` : ''}
+          ${part.observation ? `<small>Obs.: ${esc(part.observation)}</small>` : ''}
+        </div>
+        <div class="work-part-side">
+          <span class="work-status-badge ${String(part.status || '').toLowerCase()}">${esc(workStatusLabel(part.status))}</span>
+          <div class="work-part-actions">
+            <button type="button" class="mini-action validate">Validar</button>
+            <button type="button" class="mini-action review">Revisar</button>
+            <button type="button" class="mini-action reject">Rechazar</button>
+          </div>
+        </div>
+      `;
+
+      item.querySelector('.validate').addEventListener('click', () => {
+        postToBackend('workControlUpdate', {
+          rowNumber:part.rowNumber,
+          status:'VALIDADO',
+          observation:''
+        });
+      });
+
+      item.querySelector('.review').addEventListener('click', () => {
+        const observation = window.prompt('Observación para REVISAR:');
+        if (!observation) return;
+        postToBackend('workControlUpdate', {
+          rowNumber:part.rowNumber,
+          status:'REVISAR',
+          observation
+        });
+      });
+
+      item.querySelector('.reject').addEventListener('click', () => {
+        const observation = window.prompt('Motivo de RECHAZO:');
+        if (!observation) return;
+        postToBackend('workControlUpdate', {
+          rowNumber:part.rowNumber,
+          status:'RECHAZADO',
+          observation
+        });
+      });
+
+      list.appendChild(item);
+    });
+
+    el.workPartsContainer.appendChild(block);
+  });
+}
+
+
+function handleWorkControlMutation(payload) {
+  if (!payload?.ok) {
+    setStatus(el.workControlStatus, payload?.message || 'No se ha podido guardar el cambio.', 'error');
+    return;
+  }
+
+  closeWorkCorrection();
+  setStatus(el.workControlStatus, 'Cambio guardado.', 'success');
+
+  // Serializamos: primero día. Después mes desde el handler.
+  postToBackend('workControlDay', {
+    project:state.workControl.selectedProject,
+    date:state.workControl.selectedDate
+  });
+
+  setTimeout(() => {
+    postToBackend('workControlMonth', {
+      project:state.workControl.selectedProject,
+      month:workMonthKey(state.workControl.currentMonth)
+    });
+  }, 250);
+}
+
+
+function openWorkCorrection(incident) {
+  state.workControl.correctionIncident = incident;
+  const correction = incident.correction || {};
+  const mode = correction.mode || 'MANUAL';
+
+  el.workCorrectionIncidentText.textContent =
+    `${incident.worker || incident.email} · ${incident.project || ''} · ${incident.description || ''}`;
+
+  let html = '';
+
+  if (mode === 'PROJECT') {
+    html = `
+      <label><span>Bloque a corregir</span><select id="wcBlock">
+        ${(correction.blocks || []).map(b => `<option value="${esc(b.id)}">${esc(b.project)} · ${esc(b.entryTime)}${b.exitTime ? '–'+esc(b.exitTime) : ' · abierta'}</option>`).join('')}
+      </select></label>
+      <label><span>Proyecto correcto</span><select id="wcProject">
+        ${(correction.projects || []).map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('')}
+      </select></label>`;
+  } else if (mode === 'EXIT') {
+    html = `
+      <label><span>Entrada abierta</span><select id="wcBlock">
+        ${(correction.blocks || []).map(b => `<option value="${esc(b.id)}">${esc(b.project)} · entrada ${esc(b.entryTime)}</option>`).join('')}
+      </select></label>
+      <label><span>Hora de salida</span><input id="wcExitTime" type="time"></label>`;
+  } else if (mode === 'ENTRY') {
+    html = `
+      <label><span>Proyecto</span><select id="wcProject">
+        ${(correction.projects || []).map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('')}
+      </select></label>
+      <label><span>Hora de entrada</span><input id="wcEntryTime" type="time"></label>
+      <label><span>Hora de salida</span><input id="wcExitTime" type="time"></label>`;
+  } else {
+    html = `
+      <div class="empty-state">
+        Este tipo de incidencia requiere revisión manual. Puedes marcarla como REVISAR o descartarla.
+      </div>`;
+  }
+
+  el.workCorrectionFields.innerHTML = html;
+  el.saveWorkCorrectionBtn.classList.toggle('hidden', mode === 'MANUAL');
+  el.workIncidentCorrectionModal.classList.remove('hidden');
+}
+
+
+function closeWorkCorrection() {
+  el.workIncidentCorrectionModal.classList.add('hidden');
+  state.workControl.correctionIncident = null;
+  el.workCorrectionFields.innerHTML = '';
+}
+
+
+function saveWorkCorrection() {
+  const incident = state.workControl.correctionIncident;
+  if (!incident) return;
+
+  postToBackend('workControlIncidentCorrect', {
+    incidentRowNumber:incident.rowNumber,
+    correctionBlockId:document.getElementById('wcBlock')?.value || '',
+    correctionProject:document.getElementById('wcProject')?.value || '',
+    correctionEntryTime:document.getElementById('wcEntryTime')?.value || '',
+    correctionExitTime:document.getElementById('wcExitTime')?.value || ''
+  });
+}
+
+
+/* MAQUINARIA · VISTA GLOBAL */
+function openEquipmentGlobal() {
+  show(el.equipmentGlobalView);
+  setStatus(el.equipmentGlobalStatus, 'Cargando maquinaria…');
+  postToBackend('equipmentLocationsGlobal', {});
+}
+
+
+function handleEquipmentLocationsGlobal(payload) {
+  if (!payload?.ok) {
+    setStatus(el.equipmentGlobalStatus, payload?.message || 'No se ha podido cargar maquinaria.', 'error');
+    return;
+  }
+
+  state.equipmentGlobal = Array.isArray(payload.locations) ? payload.locations : [];
+
+  if (payload.configured === false) {
+    setStatus(el.equipmentGlobalStatus, payload.message || 'Módulo de maquinaria pendiente de configurar.', 'info');
+  } else {
+    clearStatus(el.equipmentGlobalStatus);
+  }
+
+  renderEquipmentGlobalFilters();
+  renderEquipmentGlobal();
+}
+
+
+function renderEquipmentGlobalFilters() {
+  const projects = [...new Set(
+    (state.equipmentGlobal || []).map(x => x.project).filter(Boolean)
+  )].sort((a,b)=>a.localeCompare(b,'es'));
+
+  const current = el.equipmentGlobalProjectFilter.value;
+  el.equipmentGlobalProjectFilter.innerHTML =
+    '<option value="">Todos</option>' +
+    projects.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+
+  if (projects.includes(current)) el.equipmentGlobalProjectFilter.value = current;
+}
+
+
+function renderEquipmentGlobal() {
+  const all = state.equipmentGlobal || [];
+  const q = el.equipmentGlobalSearch.value.trim().toLowerCase();
+  const project = el.equipmentGlobalProjectFilter.value;
+
+  const filtered = all.filter(item => {
+    if (project && item.project !== project) return false;
+    if (q) {
+      const haystack = [
+        item.equipmentId,item.name,item.type,item.supplier,item.project,item.trackerId,item.imei
+      ].join(' ').toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+
+  el.equipmentGlobalCount.textContent = all.length;
+  el.equipmentPositionCount.textContent =
+    all.filter(x => Number.isFinite(Number(x.easting)) && Number.isFinite(Number(x.northing))).length;
+  el.equipmentNoPositionCount.textContent =
+    all.length - Number(el.equipmentPositionCount.textContent);
+
+  if (!filtered.length) {
+    el.equipmentGlobalList.innerHTML = '<div class="empty-state">No hay maquinaria que coincida con los filtros.</div>';
+    return;
+  }
+
+  el.equipmentGlobalList.innerHTML = filtered.map(item => `
+    <article class="equipment-global-card">
+      <div>
+        <strong>${esc(item.name || item.equipmentId || 'Equipo')}</strong>
+        <span>${esc(item.type || '')}${item.supplier ? ' · '+esc(item.supplier) : ''}</span>
+      </div>
+      <div class="equipment-global-tags">
+        ${item.project ? `<span>${esc(item.project)}</span>` : ''}
+        ${item.trackerStatus ? `<span>${esc(item.trackerStatus)}</span>` : ''}
+      </div>
+      <dl>
+        <dt>ID</dt><dd>${esc(item.equipmentId || '—')}</dd>
+        <dt>Tracker</dt><dd>${esc(item.trackerId || '—')}</dd>
+        <dt>Batería</dt><dd>${item.battery == null ? '—' : esc(item.battery) + '%'}</dd>
+        <dt>Posición E/N</dt><dd>${item.easting == null || item.northing == null ? 'Sin posición' : `${esc(item.easting)} / ${esc(item.northing)}`}</dd>
+        <dt>Última posición</dt><dd>${esc(item.lastPosition || '—')}</dd>
+        <dt>Última comunicación</dt><dd>${esc(item.lastCommunication || '—')}</dd>
+      </dl>
+    </article>
+  `).join('');
 }
 
 
@@ -2318,6 +3045,44 @@ el.warehouseZoneModal.querySelector('.modal-backdrop')
 
 show(el.loginView);
 initGoogleIdentity();
+
+
+/* CONTROL DE TRABAJOS / MAQUINARIA EVENTS */
+el.backFromWorkControlBtn.addEventListener('click', () => show(el.projectView));
+el.workProjectScope.addEventListener('change', reloadWorkScope);
+el.refreshWorkPresenceBtn.addEventListener('click', () => {
+  setStatus(el.workControlStatus, 'Actualizando presencia…');
+  postToBackend('workControlPresence', {
+    project:state.workControl.selectedProject
+  });
+});
+el.workPrevMonthBtn.addEventListener('click', () => {
+  const wc = state.workControl;
+  wc.currentMonth = new Date(wc.currentMonth.getFullYear(), wc.currentMonth.getMonth()-1, 1);
+  postToBackend('workControlMonth', {
+    project:wc.selectedProject,
+    month:workMonthKey(wc.currentMonth)
+  });
+});
+el.workNextMonthBtn.addEventListener('click', () => {
+  const wc = state.workControl;
+  wc.currentMonth = new Date(wc.currentMonth.getFullYear(), wc.currentMonth.getMonth()+1, 1);
+  postToBackend('workControlMonth', {
+    project:wc.selectedProject,
+    month:workMonthKey(wc.currentMonth)
+  });
+});
+el.workSubcontractorFilter.addEventListener('change', renderWorkParts);
+el.workStateFilter.addEventListener('change', renderWorkParts);
+el.closeWorkCorrectionModalBtn.addEventListener('click', closeWorkCorrection);
+el.cancelWorkCorrectionBtn.addEventListener('click', closeWorkCorrection);
+el.workIncidentCorrectionModal.querySelector('.modal-backdrop').addEventListener('click', closeWorkCorrection);
+el.saveWorkCorrectionBtn.addEventListener('click', saveWorkCorrection);
+
+el.backFromEquipmentGlobalBtn.addEventListener('click', () => show(el.projectView));
+el.refreshEquipmentGlobalBtn.addEventListener('click', openEquipmentGlobal);
+el.equipmentGlobalSearch.addEventListener('input', renderEquipmentGlobal);
+el.equipmentGlobalProjectFilter.addEventListener('change', renderEquipmentGlobal);
 
 /* EVENTS */
 el.logoutBtn.addEventListener('click', logout);

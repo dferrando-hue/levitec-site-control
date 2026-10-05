@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=0.7.1">
+  <link rel="stylesheet" href="styles.css?v=0.8.0">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -88,6 +88,143 @@
 
 
   
+
+<section id="workControlView" class="view hidden">
+  <div class="section-toolbar">
+    <button id="backFromWorkControlBtn" class="btn btn-secondary" type="button">← Proyecto</button>
+    <div>
+      <div class="eyebrow">SITE · CONTROL HORARIO</div>
+      <h1>Control de trabajos</h1>
+      <p id="workControlSubtitle" class="muted"></p>
+    </div>
+    <button id="refreshWorkPresenceBtn" class="btn btn-secondary" type="button">Actualizar presencia</button>
+  </div>
+
+  <div id="workControlStatus" class="status hidden"></div>
+
+  <div class="work-scope-bar">
+    <label>
+      <span>Ámbito de consulta</span>
+      <select id="workProjectScope"></select>
+    </label>
+    <div id="workScopeHint" class="muted"></div>
+  </div>
+
+  <div class="work-presence-panel">
+    <div class="work-section-head">
+      <div>
+        <div class="eyebrow">PRESENCIA ACTUAL</div>
+        <h2>Personal actualmente en obra</h2>
+      </div>
+      <div id="workPresenceUpdated" class="muted"></div>
+    </div>
+    <div id="workPresenceList" class="work-presence-list"></div>
+  </div>
+
+  <div class="work-calendar-layout">
+    <div class="work-calendar-card">
+      <div class="work-calendar-head">
+        <button id="workPrevMonthBtn" class="icon-btn" type="button">‹</button>
+        <strong id="workCalendarTitle"></strong>
+        <button id="workNextMonthBtn" class="icon-btn" type="button">›</button>
+      </div>
+      <div class="work-weekdays">
+        <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
+      </div>
+      <div id="workCalendarGrid" class="work-calendar-grid"></div>
+      <div class="work-calendar-legend">
+        <span><i class="dot parts"></i> Partes</span>
+        <span><i class="dot incidents"></i> Incidencias</span>
+      </div>
+    </div>
+
+    <div class="work-day-panel">
+      <div class="work-section-head">
+        <div>
+          <div class="eyebrow">REVISIÓN DIARIA</div>
+          <h2 id="workSelectedDateLabel"></h2>
+        </div>
+      </div>
+
+      <div class="work-summary">
+        <div><span>TRABAJADORES</span><strong id="workWorkersSummary">0</strong></div>
+        <div><span>TAREAS</span><strong id="workTasksSummary">0</strong></div>
+        <div><span>PENDIENTES</span><strong id="workPendingSummary">0</strong></div>
+        <div><span>INCIDENCIAS</span><strong id="workIncidentsSummary">0</strong></div>
+      </div>
+
+      <div class="work-filters">
+        <label>
+          <span>Subcontrata</span>
+          <select id="workSubcontractorFilter"><option value="">Todas</option></select>
+        </label>
+        <label>
+          <span>Estado</span>
+          <select id="workStateFilter">
+            <option value="PENDIENTE">Pendientes</option>
+            <option value="">Todos</option>
+            <option value="VALIDADO">Validados</option>
+            <option value="REVISAR">Revisar</option>
+            <option value="RECHAZADO">Rechazados</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="work-incidents-block">
+        <div class="work-section-head compact">
+          <div class="eyebrow">INCIDENCIAS DEL DÍA</div>
+          <span id="workIncidentPendingCount" class="count-pill">0</span>
+        </div>
+        <div id="workIncidentsContainer"></div>
+      </div>
+
+      <div id="workPartsContainer"></div>
+    </div>
+  </div>
+</section>
+
+
+<section id="equipmentGlobalView" class="view hidden">
+  <div class="section-toolbar">
+    <button id="backFromEquipmentGlobalBtn" class="btn btn-secondary" type="button">← Proyecto</button>
+    <div>
+      <div class="eyebrow">EQUIPMENT · GLOBAL</div>
+      <h1>Localización de maquinaria</h1>
+      <p class="muted">Vista global de maquinaria, independientemente del proyecto desde el que accedas.</p>
+    </div>
+    <button id="refreshEquipmentGlobalBtn" class="btn btn-secondary" type="button">Actualizar posiciones</button>
+  </div>
+
+  <div id="equipmentGlobalStatus" class="status hidden"></div>
+
+  <div class="equipment-global-summary">
+    <div><span>ACTIVOS</span><strong id="equipmentGlobalCount">0</strong></div>
+    <div><span>CON POSICIÓN</span><strong id="equipmentPositionCount">0</strong></div>
+    <div><span>SIN POSICIÓN</span><strong id="equipmentNoPositionCount">0</strong></div>
+  </div>
+
+  <div class="equipment-global-toolbar">
+    <label>
+      <span>Buscar</span>
+      <input id="equipmentGlobalSearch" type="search" placeholder="Equipo, tipo, proveedor, proyecto…">
+    </label>
+    <label>
+      <span>Proyecto declarado</span>
+      <select id="equipmentGlobalProjectFilter"><option value="">Todos</option></select>
+    </label>
+  </div>
+
+  <div class="equipment-global-grid">
+    <div class="equipment-map-shell">
+      <img src="campus-location-map-clean.png" alt="Campus" class="equipment-campus-image">
+      <div class="equipment-map-note">
+        La posición E/N se muestra en el listado. La representación exacta sobre plano seguirá usando la calibración del módulo de tracking.
+      </div>
+    </div>
+    <div id="equipmentGlobalList" class="equipment-global-list"></div>
+  </div>
+</section>
+
 <section id="warehouseView" class="view hidden">
 
   <div class="section-toolbar">
@@ -251,6 +388,28 @@
 
 </main>
 
+
+
+<div id="workIncidentCorrectionModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-card work-correction-modal">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">CONTROL DE TRABAJOS</div>
+        <h2>Corregir incidencia</h2>
+        <p id="workCorrectionIncidentText" class="muted modal-sub"></p>
+      </div>
+      <button id="closeWorkCorrectionModalBtn" class="icon-btn" type="button">×</button>
+    </div>
+
+    <div id="workCorrectionFields" class="work-correction-fields"></div>
+
+    <div class="modal-actions">
+      <button id="cancelWorkCorrectionBtn" class="btn btn-secondary" type="button">Cancelar</button>
+      <button id="saveWorkCorrectionBtn" class="btn btn-primary" type="button">Aplicar corrección</button>
+    </div>
+  </div>
+</div>
 
 <div id="projectModal" class="modal hidden">
   <div class="modal-backdrop"></div>
@@ -737,6 +896,6 @@ window.LEVITEC_CONFIG = {
 };
 </script>
 
-<script src="app.js?v=0.7.1"></script>
+<script src="app.js?v=0.8.0"></script>
 </body>
 </html>
