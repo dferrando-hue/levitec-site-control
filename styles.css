@@ -779,3 +779,99 @@ button{cursor:pointer}
     justify-content:flex-start;
   }
 }
+
+
+/* =========================================================
+   v0.7.1 · MILESTONE MODAL LAYOUT FIX
+   ========================================================= */
+
+.milestone-modal-card{
+  width:min(680px, calc(100vw - 36px));
+  padding:28px;
+}
+
+.milestone-form{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:16px;
+}
+
+.milestone-form label{
+  min-width:0;
+  display:grid;
+  gap:7px;
+  font-size:12px;
+  font-weight:800;
+  color:var(--ink);
+}
+
+.milestone-form input,
+.milestone-form select,
+.milestone-form textarea{
+  width:100%;
+  min-width:0;
+  padding:12px 13px;
+  border:1px solid #cfd9df;
+  border-radius:10px;
+  background:#fff;
+  color:var(--ink);
+  font:inherit;
+  outline:none;
+}
+
+.milestone-form textarea{
+  min-height:100px;
+  resize:vertical;
+}
+
+.milestone-form input:focus,
+.milestone-form select:focus,
+.milestone-form textarea:focus{
+  border-color:#79bbb8;
+  box-shadow:0 0 0 3px rgba(0,139,135,.08);
+}
+
+.milestone-form .field-span-2{
+  grid-column:1 / -1;
+}
+
+.milestone-form .modal-actions{
+  grid-column:1 / -1;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:10px;
+  margin-top:4px;
+}
+
+.milestone-form .modal-actions-spacer{
+  flex:1;
+}
+
+@media(max-width:700px){
+  .milestone-modal-card{
+    width:min(560px, calc(100vw - 24px));
+    padding:22px;
+  }
+
+  .milestone-form{
+    grid-template-columns:1fr;
+  }
+
+  .milestone-form .field-span-2{
+    grid-column:1;
+  }
+
+  .milestone-form .modal-actions{
+    grid-column:1;
+    flex-wrap:wrap;
+  }
+
+  .milestone-form .modal-actions-spacer{
+    display:none;
+  }
+
+  .milestone-form .modal-actions .btn{
+    flex:1 1 auto;
+  }
+}
