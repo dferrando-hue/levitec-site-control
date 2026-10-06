@@ -796,6 +796,11 @@ function handleWorkControlMonth(payload){
   wc.monthParts = Array.isArray(payload.parts) ? payload.parts : [];
   wc.monthIncidents = Array.isArray(payload.incidents) ? payload.incidents : [];
 
+  if(Array.isArray(payload.scopeProjects) && payload.scopeProjects.length){
+    wc.projects = payload.scopeProjects.map(id => ({id:id,name:id,campus:''}));
+    renderWorkProjectScope();
+  }
+
   const year = wc.currentMonth.getFullYear();
   const month = wc.currentMonth.getMonth();
   const selected = new Date(`${wc.selectedDate}T12:00:00`);
@@ -951,8 +956,40 @@ function equipmentFreshness(item){const age=equipmentAgeMinutes(item);if(age==nu
 function equipmentAgeLabel(item){const age=equipmentAgeMinutes(item);if(age==null)return'Sin posición';if(age<1)return'Ahora';if(age<60)return'Hace '+age+' min';return'Hace '+Math.floor(age/60)+' h';}
 function equipmentIcon(type){const t=normalizeFrontText(type);if(t.includes('GRUA'))return'🏗';if(t.includes('PEMP')||t.includes('PLATAFORMA'))return'↕';if(t.includes('MANITOU')||t.includes('TELEHANDLER'))return'M';return'•';}
 
-function openEquipmentGlobal(){show(el.equipmentGlobalView);renderEquipmentSiteLabels();setStatus(el.equipmentGlobalStatus,'Cargando maquinaria…');postToBackend('equipmentLocationsGlobal',{});}
-function handleEquipmentLocationsGlobal(payload){if(!payload?.ok){setStatus(el.equipmentGlobalStatus,payload?.message||'No se ha podido cargar maquinaria.','error');return;}state.equipmentGlobal=Array.isArray(payload.locations)?payload.locations:[];if(payload.configured===false)setStatus(el.equipmentGlobalStatus,payload.message||'Módulo de maquinaria pendiente de configurar.','info');else clearStatus(el.equipmentGlobalStatus);populateEquipmentFilters();renderEquipmentGlobal();}
+function openEquipmentGlobal(){
+  show(el.equipmentGlobalView);
+  renderEquipmentSiteLabels();
+  refreshEquipmentPositions();
+}
+
+function refreshEquipmentPositions(){
+  setStatus(el.equipmentGlobalStatus,'Actualizando posiciones…');
+  if(el.refreshEquipmentGlobalBtn){
+    el.refreshEquipmentGlobalBtn.disabled = true;
+    el.refreshEquipmentGlobalBtn.textContent = 'ACTUALIZANDO…';
+  }
+  postToBackend('equipmentLocationsGlobal',{});
+}
+function handleEquipmentLocationsGlobal(payload){
+  if(el.refreshEquipmentGlobalBtn){
+    el.refreshEquipmentGlobalBtn.disabled = false;
+    el.refreshEquipmentGlobalBtn.textContent = 'ACTUALIZAR POSICIONES';
+  }
+
+  if(!payload?.ok){
+    setStatus(el.equipmentGlobalStatus,payload?.message||'No se ha podido cargar maquinaria.','error');
+    return;
+  }
+
+  state.equipmentGlobal=Array.isArray(payload.locations)?payload.locations:[];
+  if(payload.configured===false){
+    setStatus(el.equipmentGlobalStatus,payload.message||'Módulo de maquinaria pendiente de configurar.','info');
+  }else{
+    clearStatus(el.equipmentGlobalStatus);
+  }
+  populateEquipmentFilters();
+  renderEquipmentGlobal();
+}
 function populateEquipmentFilters(){const projectEl=el.equipmentGlobalProjectFilter,typeEl=el.equipmentTypeFilter,oldProject=projectEl.value,oldType=typeEl.value;const projects=[...new Set(state.equipmentGlobal.map(x=>x.project).filter(Boolean))].sort(),types=[...new Set(state.equipmentGlobal.map(x=>x.type).filter(Boolean))].sort();projectEl.innerHTML='<option value="">Todos los proyectos</option>'+projects.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');typeEl.innerHTML='<option value="">Todos los tipos</option>'+types.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');if(projects.includes(oldProject))projectEl.value=oldProject;if(types.includes(oldType))typeEl.value=oldType;}
 function renderEquipmentGlobal(){
   const project=el.equipmentGlobalProjectFilter.value,type=el.equipmentTypeFilter.value,q=el.equipmentGlobalSearch.value.trim().toLowerCase();
@@ -2762,7 +2799,7 @@ el.workIncidentCorrectionModal.querySelector('.modal-backdrop').addEventListener
 el.saveWorkCorrectionBtn.addEventListener('click', saveWorkCorrection);
 
 el.backFromEquipmentGlobalBtn.addEventListener('click', () => show(el.projectView));
-el.refreshEquipmentGlobalBtn.addEventListener('click', openEquipmentGlobal);
+el.refreshEquipmentGlobalBtn.addEventListener('click', refreshEquipmentPositions);
 el.equipmentGlobalSearch.addEventListener('input', renderEquipmentGlobal);
 el.equipmentGlobalProjectFilter.addEventListener('change', renderEquipmentGlobal);
 el.equipmentTypeFilter.addEventListener('change', renderEquipmentGlobal);
