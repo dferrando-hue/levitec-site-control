@@ -40,6 +40,8 @@ const state = {
     currentMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     selectedDate: new Date().toISOString().slice(0,10),
     monthDays: [],
+    monthParts: [],
+    monthIncidents: [],
     parts: [],
     incidents: [],
     presence: [],
@@ -686,8 +688,8 @@ function openWorkControl() {
   const wc = state.workControl;
   wc.currentMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   wc.selectedDate = workDateKey(new Date());
-  wc.selectedProject = state.currentProject.id;
-  el.workControlSubtitle.textContent = `${state.currentProject.name || state.currentProject.id} · Control de fichajes, partes e incidencias.`;
+  wc.selectedProject = 'ALL';
+  el.workControlSubtitle.textContent = `Control de fichajes, partes e incidencias · todos tus proyectos autorizados.`;
   show(el.workControlView);
   setStatus(el.workControlStatus, 'Cargando partes, incidencias y presencia…');
   postToBackend('workControlBootstrap', {project:wc.selectedProject,month:workMonthKey(wc.currentMonth),date:wc.selectedDate});
@@ -699,10 +701,15 @@ function handleWorkControlBootstrap(payload) {
   wc.projects = Array.isArray(payload.projects) ? payload.projects : [];
   wc.selectedProject = payload.selectedProject || wc.selectedProject;
   wc.monthDays = payload.month?.days || [];
-  wc.parts = payload.day?.parts || [];
-  wc.incidents = payload.day?.incidents || [];
+  wc.monthParts = Array.isArray(payload.monthParts) ? payload.monthParts : [];
+  wc.monthIncidents = Array.isArray(payload.monthIncidents) ? payload.monthIncidents : [];
   wc.presence = Array.isArray(payload.presence) ? payload.presence : [];
-  renderWorkProjectScope(); renderWorkPresence(); renderWorkCalendar(); renderWorkDay(); clearStatus(el.workControlStatus);
+  selectWorkDateLocal(wc.selectedDate);
+  renderWorkProjectScope();
+  renderWorkPresence();
+  renderWorkCalendar();
+  renderWorkDay();
+  clearStatus(el.workControlStatus);
 }
 
 function renderWorkProjectScope() {
@@ -720,9 +727,8 @@ function renderWorkProjectScope() {
 }
 
 function reloadWorkScope() {
-  const wc = state.workControl; wc.selectedProject = el.workProjectScope.value || 'ALL';
-  setStatus(el.workControlStatus,'Actualizando ámbito…');
-  postToBackend('workControlBootstrap',{project:wc.selectedProject,month:workMonthKey(wc.currentMonth),date:wc.selectedDate});
+  state.workControl.selectedProject = el.workProjectScope.value || 'ALL';
+  renderWorkDay();
 }
 
 function renderWorkPresence() {
@@ -745,6 +751,14 @@ function renderWorkPresence() {
   el.workPresenceList.querySelectorAll('.presence-sub-head').forEach(btn=>btn.addEventListener('click',()=>btn.closest('.presence-sub-row').classList.toggle('open')));
 }
 
+
+function selectWorkDateLocal(dateKey) {
+  const wc = state.workControl;
+  wc.selectedDate = dateKey;
+  wc.parts = (wc.monthParts || []).filter(p => p.date === dateKey);
+  wc.incidents = (wc.monthIncidents || []).filter(i => (i.date || i.affectedDate) === dateKey);
+}
+
 function renderWorkCalendar() {
   const wc=state.workControl;
   const year=wc.currentMonth.getFullYear(), month=wc.currentMonth.getMonth();
@@ -760,14 +774,45 @@ function renderWorkCalendar() {
     const b=document.createElement('button'); b.type='button'; b.className='day';
     if(key===wc.selectedDate)b.classList.add('selected'); if(key===workDateKey(new Date()))b.classList.add('today');
     b.innerHTML=`${day}${Number(info.incidents||0)?'<span class="incident-calendar-mark"></span>':''}${Number(info.count||0)?'<span class="dot"></span>':''}${Number(info.pending||0)?`<span class="pending-dot">${Number(info.pending)}</span>`:''}`;
-    b.addEventListener('click',()=>{wc.selectedDate=key; renderWorkCalendar(); setStatus(el.workControlStatus,'Cargando día…'); postToBackend('workControlDay',{project:wc.selectedProject,date:key});});
+    b.addEventListener('click',()=>{
+      selectWorkDateLocal(key);
+      renderWorkCalendar();
+      renderWorkDay();
+    });
     el.workCalendarGrid.appendChild(b);
   }
   const totalCells=startPad+last.getDate(), tail=(7-(totalCells%7))%7;
   for(let i=1;i<=tail;i++){ const b=document.createElement('button'); b.type='button'; b.className='day other'; b.textContent=i; b.disabled=true; el.workCalendarGrid.appendChild(b); }
 }
 
-function handleWorkControlMonth(payload){ if(!payload?.ok){setStatus(el.workControlStatus,payload?.message||'No se pudo cargar el mes.','error');return;} state.workControl.monthDays=payload.days||[]; renderWorkCalendar(); clearStatus(el.workControlStatus); }
+function handleWorkControlMonth(payload){
+  if(!payload?.ok){
+    setStatus(el.workControlStatus,payload?.message||'No se pudo cargar el mes.','error');
+    return;
+  }
+
+  const wc = state.workControl;
+  wc.monthDays = payload.days || [];
+  wc.monthParts = Array.isArray(payload.parts) ? payload.parts : [];
+  wc.monthIncidents = Array.isArray(payload.incidents) ? payload.incidents : [];
+
+  const year = wc.currentMonth.getFullYear();
+  const month = wc.currentMonth.getMonth();
+  const selected = new Date(`${wc.selectedDate}T12:00:00`);
+
+  if (selected.getFullYear() !== year || selected.getMonth() !== month) {
+    const today = new Date();
+    wc.selectedDate =
+      today.getFullYear() === year && today.getMonth() === month
+        ? workDateKey(today)
+        : workDateKey(new Date(year, month, 1));
+  }
+
+  selectWorkDateLocal(wc.selectedDate);
+  renderWorkCalendar();
+  renderWorkDay();
+  clearStatus(el.workControlStatus);
+}
 function handleWorkControlDay(payload){ if(!payload?.ok){setStatus(el.workControlStatus,payload?.message||'No se pudo cargar el día.','error');return;} state.workControl.parts=payload.parts||[]; state.workControl.incidents=payload.incidents||[]; renderWorkDay(); clearStatus(el.workControlStatus); }
 function handleWorkControlPresence(payload){ if(!payload?.ok){setStatus(el.workControlStatus,payload?.message||'No se pudo actualizar la presencia.','error');return;} state.workControl.presence=payload.presence||[]; renderWorkPresence(); clearStatus(el.workControlStatus); }
 
@@ -805,7 +850,17 @@ function renderWorkIncidents(){
   });
 }
 
-function filteredWorkParts(){const sub=el.workSubcontractorFilter.value,stateFilter=el.workStateFilter.value;return(state.workControl.parts||[]).filter(p=>(!sub||p.subcontractor===sub)&&(!stateFilter||p.status===stateFilter));}
+function filteredWorkParts(){
+  const project = state.workControl.selectedProject === 'ALL' ? '' : state.workControl.selectedProject;
+  const sub = el.workSubcontractorFilter.value;
+  const stateFilter = el.workStateFilter.value;
+
+  return (state.workControl.parts || []).filter(p =>
+    (!project || p.project === project) &&
+    (!sub || p.subcontractor === sub) &&
+    (!stateFilter || p.status === stateFilter)
+  );
+}
 function renderWorkParts(){
   const parts=filteredWorkParts(); if(!parts.length){el.workPartsContainer.innerHTML='<div class="empty-state">No hay partes que coincidan con los filtros.</div>';return;}
   const groups={}; parts.forEach(p=>{const k=`${p.project}|${p.subcontractor}|${p.worker}`;(groups[k]||=[]).push(p);});
@@ -825,17 +880,11 @@ function renderWorkParts(){
   });
 }
 
-function handleWorkControlMutation(payload){if(!payload?.ok){setStatus(el.workControlStatus,payload?.message||'No se ha podido guardar el cambio.','error');return;}closeWorkCorrection();setStatus(el.workControlStatus,'Cambio guardado.','success');postToBackend('workControlDay',{project:state.workControl.selectedProject,date:state.workControl.selectedDate});setTimeout(()=>postToBackend('workControlMonth',{project:state.workControl.selectedProject,month:workMonthKey(state.workControl.currentMonth)}),300);}
-
-function openWorkCorrection(incident){
-  state.workControl.correctionIncident=incident;const correction=incident.correction||{},mode=correction.mode||'MANUAL';
-  el.workCorrectionIncidentText.textContent=`${incident.worker||incident.email} · ${incident.project||''} · ${incident.description||''}`;
-  let html='';
-  if(mode==='PROJECT')html=`<label><span>Bloque a corregir</span><select id="wcBlock">${(correction.blocks||[]).map(b=>`<option value="${esc(b.id)}">${esc(b.project)} · ${esc(b.entryTime)}${b.exitTime?'–'+esc(b.exitTime):' · abierta'}</option>`).join('')}</select></label><label><span>Proyecto correcto</span><select id="wcProject">${(correction.projects||[]).map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('')}</select></label>`;
-  else if(mode==='EXIT')html=`<label><span>Entrada abierta</span><select id="wcBlock">${(correction.blocks||[]).map(b=>`<option value="${esc(b.id)}">${esc(b.project)} · entrada ${esc(b.entryTime)}</option>`).join('')}</select></label><label><span>Hora de salida</span><input id="wcExitTime" type="time"></label>`;
-  else if(mode==='ENTRY')html=`<label><span>Proyecto</span><select id="wcProject">${(correction.projects||[]).map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('')}</select></label><label><span>Hora de entrada</span><input id="wcEntryTime" type="time"></label><label><span>Hora de salida</span><input id="wcExitTime" type="time"></label>`;
-  else html='<div class="empty-state">Este tipo de incidencia requiere revisión manual.</div>';
-  el.workCorrectionFields.innerHTML=html;el.saveWorkCorrectionBtn.classList.toggle('hidden',mode==='MANUAL');el.workIncidentCorrectionModal.classList.remove('hidden');
+function handleWorkControlMutation(payload){if(!payload?.ok){setStatus(el.workControlStatus,payload?.message||'No se ha podido guardar el cambio.','error');return;}closeWorkCorrection();setStatus(el.workControlStatus,'Cambio guardado.','success');
+  postToBackend('workControlMonth', {
+    project:'ALL',
+    month:workMonthKey(state.workControl.currentMonth)
+  });
 }
 function closeWorkCorrection(){el.workIncidentCorrectionModal.classList.add('hidden');state.workControl.correctionIncident=null;el.workCorrectionFields.innerHTML='';}
 function saveWorkCorrection(){const i=state.workControl.correctionIncident;if(!i)return;postToBackend('workControlIncidentCorrect',{incidentRowNumber:i.rowNumber,correctionBlockId:document.getElementById('wcBlock')?.value||'',correctionProject:document.getElementById('wcProject')?.value||'',correctionEntryTime:document.getElementById('wcEntryTime')?.value||'',correctionExitTime:document.getElementById('wcExitTime')?.value||''});}
@@ -2686,14 +2735,14 @@ el.workProjectScope.addEventListener('change', reloadWorkScope);
 el.refreshWorkPresenceBtn.addEventListener('click', () => {
   setStatus(el.workControlStatus, 'Actualizando presencia…');
   postToBackend('workControlPresence', {
-    project:state.workControl.selectedProject
+    project:'ALL'
   });
 });
 el.workPrevMonthBtn.addEventListener('click', () => {
   const wc = state.workControl;
   wc.currentMonth = new Date(wc.currentMonth.getFullYear(), wc.currentMonth.getMonth()-1, 1);
   postToBackend('workControlMonth', {
-    project:wc.selectedProject,
+    project:'ALL',
     month:workMonthKey(wc.currentMonth)
   });
 });
@@ -2701,7 +2750,7 @@ el.workNextMonthBtn.addEventListener('click', () => {
   const wc = state.workControl;
   wc.currentMonth = new Date(wc.currentMonth.getFullYear(), wc.currentMonth.getMonth()+1, 1);
   postToBackend('workControlMonth', {
-    project:wc.selectedProject,
+    project:'ALL',
     month:workMonthKey(wc.currentMonth)
   });
 });
