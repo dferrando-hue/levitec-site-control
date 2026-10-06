@@ -246,6 +246,9 @@ const el = {
   workProjectScope: $('workProjectScope'),
   workScopeHint: $('workScopeHint'),
   workPresenceUpdated: $('workPresenceUpdated'),
+  workPresencePeople: $('workPresencePeople'),
+  workPresenceSubs: $('workPresenceSubs'),
+  workPresenceProjectsCount: $('workPresenceProjectsCount'),
   workPresenceList: $('workPresenceList'),
   workPrevMonthBtn: $('workPrevMonthBtn'),
   workNextMonthBtn: $('workNextMonthBtn'),
@@ -278,6 +281,15 @@ const el = {
   equipmentGlobalSearch: $('equipmentGlobalSearch'),
   equipmentGlobalProjectFilter: $('equipmentGlobalProjectFilter'),
   equipmentGlobalList: $('equipmentGlobalList'),
+  equipmentUpdated: $('equipmentUpdated'),
+  equipmentTypeFilter: $('equipmentTypeFilter'),
+  equipmentMapCard: $('equipmentMapCard'),
+  equipmentCampusMap: $('equipmentCampusMap'),
+  equipmentSiteLayer: $('equipmentSiteLayer'),
+  equipmentMarkerLayer: $('equipmentMarkerLayer'),
+  equipmentDetailPop: $('equipmentDetailPop'),
+  equipmentCleanMap: $('equipmentCleanMap'),
+  equipmentFullscreen: $('equipmentFullscreen'),
 
   backendForm: $('backendForm'),
   backendAction: $('backendAction'),
@@ -502,6 +514,12 @@ window.addEventListener('message', event => {
       if (!el.warehouseView.classList.contains('hidden')) {
         setStatus(el.warehouseStatus, msg.payload?.message || 'Error de servidor.', 'error');
       }
+      if (!el.workControlView.classList.contains('hidden')) {
+        setStatus(el.workControlStatus, msg.payload?.message || 'Error de Control Horario.', 'error');
+      }
+      if (!el.equipmentGlobalView.classList.contains('hidden')) {
+        setStatus(el.equipmentGlobalStatus, msg.payload?.message || 'Error de maquinaria.', 'error');
+      }
       break;
   }
 });
@@ -657,44 +675,26 @@ function renderModules() {
 
 /* CONTROL DE TRABAJOS · INTEGRACIÓN CONTROL HORARIO */
 function workDateKey(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth()+1).padStart(2,'0');
-  const d = String(date.getDate()).padStart(2,'0');
-  return `${y}-${m}-${d}`;
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 }
-
 function workMonthKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
 }
 
 function openWorkControl() {
   if (!state.currentProject) return;
-
   const wc = state.workControl;
   wc.currentMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   wc.selectedDate = workDateKey(new Date());
   wc.selectedProject = state.currentProject.id;
-
-  el.workControlSubtitle.textContent =
-    `${state.currentProject.name || state.currentProject.id} · La visibilidad depende de tus proyectos autorizados en Site Control.`;
-
+  el.workControlSubtitle.textContent = `${state.currentProject.name || state.currentProject.id} · Control de fichajes, partes e incidencias.`;
   show(el.workControlView);
   setStatus(el.workControlStatus, 'Cargando partes, incidencias y presencia…');
-
-  postToBackend('workControlBootstrap', {
-    project:wc.selectedProject,
-    month:workMonthKey(wc.currentMonth),
-    date:wc.selectedDate
-  });
+  postToBackend('workControlBootstrap', {project:wc.selectedProject,month:workMonthKey(wc.currentMonth),date:wc.selectedDate});
 }
 
-
 function handleWorkControlBootstrap(payload) {
-  if (!payload?.ok) {
-    setStatus(el.workControlStatus, payload?.message || 'No se ha podido cargar Control de trabajos.', 'error');
-    return;
-  }
-
+  if (!payload?.ok) { setStatus(el.workControlStatus, payload?.message || 'No se ha podido cargar Control de trabajos.', 'error'); return; }
   const wc = state.workControl;
   wc.projects = Array.isArray(payload.projects) ? payload.projects : [];
   wc.selectedProject = payload.selectedProject || wc.selectedProject;
@@ -702,590 +702,1735 @@ function handleWorkControlBootstrap(payload) {
   wc.parts = payload.day?.parts || [];
   wc.incidents = payload.day?.incidents || [];
   wc.presence = Array.isArray(payload.presence) ? payload.presence : [];
-
-  renderWorkProjectScope();
-  renderWorkPresence();
-  renderWorkCalendar();
-  renderWorkDay();
-  clearStatus(el.workControlStatus);
+  renderWorkProjectScope(); renderWorkPresence(); renderWorkCalendar(); renderWorkDay(); clearStatus(el.workControlStatus);
 }
-
 
 function renderWorkProjectScope() {
-  const wc = state.workControl;
-  const projects = wc.projects || [];
-
+  const wc = state.workControl, projects = wc.projects || [];
   el.workProjectScope.innerHTML = '';
-
   if (projects.length > 1) {
-    const all = document.createElement('option');
-    all.value = 'ALL';
-    all.textContent = 'Todos mis proyectos';
-    el.workProjectScope.appendChild(all);
+    const o = document.createElement('option'); o.value='ALL'; o.textContent='Todos mis proyectos'; el.workProjectScope.appendChild(o);
   }
-
-  projects.forEach(project => {
-    const option = document.createElement('option');
-    option.value = project.id;
-    option.textContent = `${project.id} · ${project.name || project.id}`;
-    el.workProjectScope.appendChild(option);
-  });
-
-  if ([...el.workProjectScope.options].some(o => o.value === wc.selectedProject)) {
-    el.workProjectScope.value = wc.selectedProject;
-  } else if (projects.length === 1) {
-    wc.selectedProject = projects[0].id;
-    el.workProjectScope.value = projects[0].id;
-  } else {
-    wc.selectedProject = 'ALL';
-    el.workProjectScope.value = 'ALL';
-  }
-
+  projects.forEach(project => { const o=document.createElement('option'); o.value=project.id; o.textContent=`${project.id} · ${project.name || project.id}`; el.workProjectScope.appendChild(o); });
+  if ([...el.workProjectScope.options].some(o=>o.value===wc.selectedProject)) el.workProjectScope.value=wc.selectedProject;
+  else if (projects.length===1) { wc.selectedProject=projects[0].id; el.workProjectScope.value=projects[0].id; }
+  else { wc.selectedProject='ALL'; el.workProjectScope.value='ALL'; }
   el.workProjectScope.disabled = projects.length <= 1;
-
-  if (projects.length <= 1) {
-    el.workScopeHint.textContent = 'Tu usuario solo tiene acceso a este proyecto.';
-  } else {
-    el.workScopeHint.textContent = 'Puedes consultar cualquiera de tus proyectos autorizados o todos en conjunto.';
-  }
+  el.workScopeHint.textContent = projects.length <= 1 ? 'Solo tienes acceso a este proyecto.' : 'Puedes cambiar de proyecto o consultar todos.';
 }
-
 
 function reloadWorkScope() {
-  const wc = state.workControl;
-  wc.selectedProject = el.workProjectScope.value || 'ALL';
-  setStatus(el.workControlStatus, 'Actualizando ámbito…');
-
-  postToBackend('workControlBootstrap', {
-    project:wc.selectedProject,
-    month:workMonthKey(wc.currentMonth),
-    date:wc.selectedDate
-  });
+  const wc = state.workControl; wc.selectedProject = el.workProjectScope.value || 'ALL';
+  setStatus(el.workControlStatus,'Actualizando ámbito…');
+  postToBackend('workControlBootstrap',{project:wc.selectedProject,month:workMonthKey(wc.currentMonth),date:wc.selectedDate});
 }
-
 
 function renderWorkPresence() {
   const rows = state.workControl.presence || [];
-  const grouped = {};
-
-  rows.forEach(row => {
-    const key = row.project || 'SIN PROYECTO';
-    (grouped[key] ||= []).push(row);
-  });
-
-  el.workPresenceList.innerHTML = '';
-
-  if (!rows.length) {
-    el.workPresenceList.innerHTML = '<div class="empty-state">No hay entradas abiertas en el ámbito seleccionado.</div>';
-  } else {
-    Object.keys(grouped).sort().forEach(project => {
-      const block = document.createElement('div');
-      block.className = 'work-presence-project';
-      block.innerHTML = `
-        <div class="work-presence-project-head">
-          <strong>${esc(project)}</strong>
-          <span>${grouped[project].length} en obra</span>
-        </div>
-        <div class="work-presence-workers">
-          ${grouped[project].map(row => `
-            <div class="work-presence-worker">
-              <strong>${esc(row.worker || row.email)}</strong>
-              <span>${esc(row.subcontractor || '')}</span>
-              <small>Entrada ${esc(row.entryTime || '')}</small>
-            </div>
-          `).join('')}
-        </div>
-      `;
-      el.workPresenceList.appendChild(block);
-    });
-  }
-
-  el.workPresenceUpdated.textContent =
-    `Actualizado ${new Intl.DateTimeFormat('es-ES',{hour:'2-digit',minute:'2-digit'}).format(new Date())}`;
+  const subs = new Set(rows.map(r=>r.subcontractor).filter(Boolean));
+  const projects = new Set(rows.map(r=>r.project).filter(Boolean));
+  el.workPresencePeople.textContent = rows.length;
+  el.workPresenceSubs.textContent = subs.size;
+  el.workPresenceProjectsCount.textContent = projects.size;
+  el.workPresenceUpdated.textContent = `Actualizado ${new Intl.DateTimeFormat('es-ES',{hour:'2-digit',minute:'2-digit'}).format(new Date())}`;
+  if (!rows.length) { el.workPresenceList.innerHTML='<div class="presence-empty">No hay fichajes de entrada abiertos en este momento.</div>'; return; }
+  const grouped={}; rows.forEach(r=>{ (grouped[r.project] ||= {}); (grouped[r.project][r.subcontractor] ||= []).push(r); });
+  el.workPresenceList.innerHTML = Object.keys(grouped).sort().map(project => {
+    const subHtml = Object.keys(grouped[project]).sort().map(sub => {
+      const workers=grouped[project][sub];
+      return `<div class="presence-sub-row"><button type="button" class="presence-sub-head"><span class="presence-sub-name">${esc(sub)}</span><span class="presence-sub-count">${workers.length} persona${workers.length===1?'':'s'} · ver detalle ▾</span></button><div class="presence-workers">${workers.map(w=>`<div class="presence-worker"><div><div class="presence-worker-name">${esc(w.worker || w.email)}</div><div class="presence-worker-meta">${esc(w.email || '')}</div></div><div class="presence-entry">Entrada ${esc(w.entryTime || '')}</div></div>`).join('')}</div></div>`;
+    }).join('');
+    return `<div class="presence-project"><div class="presence-project-head"><span class="presence-project-name">${esc(project)}</span><span class="presence-project-count">${Object.values(grouped[project]).flat().length} en obra</span></div>${subHtml}</div>`;
+  }).join('');
+  el.workPresenceList.querySelectorAll('.presence-sub-head').forEach(btn=>btn.addEventListener('click',()=>btn.closest('.presence-sub-row').classList.toggle('open')));
 }
-
 
 function renderWorkCalendar() {
-  const wc = state.workControl;
-  const first = new Date(wc.currentMonth.getFullYear(), wc.currentMonth.getMonth(), 1);
-  const last = new Date(wc.currentMonth.getFullYear(), wc.currentMonth.getMonth()+1, 0);
-  const startPad = (first.getDay() + 6) % 7;
-
-  el.workCalendarTitle.textContent =
-    new Intl.DateTimeFormat('es-ES',{month:'long',year:'numeric'}).format(first);
-
-  const activity = {};
-  (wc.monthDays || []).forEach(day => activity[day.date] = day);
-
-  el.workCalendarGrid.innerHTML = '';
-
-  for (let i=0;i<startPad;i++) {
-    const blank = document.createElement('div');
-    blank.className = 'work-day blank';
-    el.workCalendarGrid.appendChild(blank);
+  const wc=state.workControl;
+  const year=wc.currentMonth.getFullYear(), month=wc.currentMonth.getMonth();
+  const first=new Date(year,month,1), last=new Date(year,month+1,0);
+  el.workCalendarTitle.textContent=new Intl.DateTimeFormat('es-ES',{month:'long',year:'numeric'}).format(first);
+  const activity={}; (wc.monthDays||[]).forEach(d=>activity[d.date]=d);
+  el.workCalendarGrid.innerHTML='';
+  const startPad=(first.getDay()+6)%7;
+  const prevLast=new Date(year,month,0).getDate();
+  for(let i=startPad-1;i>=0;i--){ const b=document.createElement('button'); b.type='button'; b.className='day other'; b.textContent=prevLast-i; b.disabled=true; el.workCalendarGrid.appendChild(b); }
+  for(let day=1;day<=last.getDate();day++){
+    const d=new Date(year,month,day), key=workDateKey(d), info=activity[key]||{};
+    const b=document.createElement('button'); b.type='button'; b.className='day';
+    if(key===wc.selectedDate)b.classList.add('selected'); if(key===workDateKey(new Date()))b.classList.add('today');
+    b.innerHTML=`${day}${Number(info.incidents||0)?'<span class="incident-calendar-mark"></span>':''}${Number(info.count||0)?'<span class="dot"></span>':''}${Number(info.pending||0)?`<span class="pending-dot">${Number(info.pending)}</span>`:''}`;
+    b.addEventListener('click',()=>{wc.selectedDate=key; renderWorkCalendar(); setStatus(el.workControlStatus,'Cargando día…'); postToBackend('workControlDay',{project:wc.selectedProject,date:key});});
+    el.workCalendarGrid.appendChild(b);
   }
-
-  for (let day=1; day<=last.getDate(); day++) {
-    const d = new Date(first.getFullYear(), first.getMonth(), day);
-    const key = workDateKey(d);
-    const info = activity[key] || {};
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'work-day';
-    if (key === wc.selectedDate) btn.classList.add('selected');
-    if (key === workDateKey(new Date())) btn.classList.add('today');
-
-    btn.innerHTML = `
-      <span class="work-day-number">${day}</span>
-      <span class="work-day-dots">
-        ${Number(info.count || 0) ? '<i class="dot parts"></i>' : ''}
-        ${Number(info.incidents || 0) ? '<i class="dot incidents"></i>' : ''}
-      </span>
-      ${Number(info.pending || 0) ? `<small>${Number(info.pending)} pend.</small>` : ''}
-    `;
-
-    btn.addEventListener('click', () => {
-      wc.selectedDate = key;
-      renderWorkCalendar();
-      setStatus(el.workControlStatus, 'Cargando día…');
-      postToBackend('workControlDay', {
-        project:wc.selectedProject,
-        date:wc.selectedDate
-      });
-    });
-
-    el.workCalendarGrid.appendChild(btn);
-  }
+  const totalCells=startPad+last.getDate(), tail=(7-(totalCells%7))%7;
+  for(let i=1;i<=tail;i++){ const b=document.createElement('button'); b.type='button'; b.className='day other'; b.textContent=i; b.disabled=true; el.workCalendarGrid.appendChild(b); }
 }
 
+function handleWorkControlMonth(payload){ if(!payload?.ok){setStatus(el.workControlStatus,payload?.message||'No se pudo cargar el mes.','error');return;} state.workControl.monthDays=payload.days||[]; renderWorkCalendar(); clearStatus(el.workControlStatus); }
+function handleWorkControlDay(payload){ if(!payload?.ok){setStatus(el.workControlStatus,payload?.message||'No se pudo cargar el día.','error');return;} state.workControl.parts=payload.parts||[]; state.workControl.incidents=payload.incidents||[]; renderWorkDay(); clearStatus(el.workControlStatus); }
+function handleWorkControlPresence(payload){ if(!payload?.ok){setStatus(el.workControlStatus,payload?.message||'No se pudo actualizar la presencia.','error');return;} state.workControl.presence=payload.presence||[]; renderWorkPresence(); clearStatus(el.workControlStatus); }
 
-function handleWorkControlMonth(payload) {
-  if (!payload?.ok) {
-    setStatus(el.workControlStatus, payload?.message || 'No se pudo cargar el mes.', 'error');
-    return;
-  }
-  state.workControl.monthDays = payload.days || [];
-  renderWorkCalendar();
-  clearStatus(el.workControlStatus);
+function workStatusLabel(status){return({PENDIENTE:'Pendiente',VALIDADO:'Validado',REVISAR:'Revisar',RECHAZADO:'Rechazado'})[status]||status||'Pendiente';}
+
+function renderWorkDay(){
+  const wc=state.workControl, parts=wc.parts||[], incidents=wc.incidents||[];
+  const date=new Date(`${wc.selectedDate}T12:00:00`);
+  el.workSelectedDateLabel.textContent=new Intl.DateTimeFormat('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(date);
+  const workers=new Set(parts.map(p=>p.email||p.worker).filter(Boolean));
+  el.workWorkersSummary.textContent=`${workers.size} trabajador${workers.size===1?'':'es'}`;
+  el.workTasksSummary.textContent=`${parts.length} tarea${parts.length===1?'':'s'}`;
+  const pending=parts.filter(p=>p.status==='PENDIENTE').length;
+  el.workPendingSummary.textContent=`${pending} pendiente${pending===1?'':'s'}`;
+  el.workIncidentsSummary.textContent=`${incidents.length} incidencia${incidents.length===1?'':'s'}`;
+  const subs=[...new Set(parts.map(p=>p.subcontractor).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+  const current=el.workSubcontractorFilter.value;
+  el.workSubcontractorFilter.innerHTML='<option value="">Todas</option>'+subs.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  if(subs.includes(current))el.workSubcontractorFilter.value=current;
+  renderWorkIncidents(); renderWorkParts();
 }
 
-
-function handleWorkControlDay(payload) {
-  if (!payload?.ok) {
-    setStatus(el.workControlStatus, payload?.message || 'No se pudo cargar el día.', 'error');
-    return;
-  }
-  state.workControl.parts = payload.parts || [];
-  state.workControl.incidents = payload.incidents || [];
-  renderWorkDay();
-  clearStatus(el.workControlStatus);
-}
-
-
-function handleWorkControlPresence(payload) {
-  if (!payload?.ok) {
-    setStatus(el.workControlStatus, payload?.message || 'No se pudo actualizar la presencia.', 'error');
-    return;
-  }
-  state.workControl.presence = payload.presence || [];
-  renderWorkPresence();
-  clearStatus(el.workControlStatus);
-}
-
-
-function workStatusLabel(status) {
-  return ({
-    PENDIENTE:'Pendiente',
-    VALIDADO:'Validado',
-    REVISAR:'Revisar',
-    RECHAZADO:'Rechazado'
-  })[status] || status || 'Pendiente';
-}
-
-
-function renderWorkDay() {
-  const wc = state.workControl;
-  const parts = wc.parts || [];
-  const incidents = wc.incidents || [];
-
-  const date = new Date(`${wc.selectedDate}T12:00:00`);
-  el.workSelectedDateLabel.textContent =
-    new Intl.DateTimeFormat('es-ES',{
-      weekday:'long',day:'numeric',month:'long',year:'numeric'
-    }).format(date);
-
-  const workers = new Set(parts.map(p => p.email || p.worker).filter(Boolean));
-  el.workWorkersSummary.textContent = workers.size;
-  el.workTasksSummary.textContent = parts.length;
-  el.workPendingSummary.textContent = parts.filter(p => p.status === 'PENDIENTE').length;
-  el.workIncidentsSummary.textContent = incidents.length;
-
-  const subs = [...new Set(parts.map(p => p.subcontractor).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
-  const currentSub = el.workSubcontractorFilter.value;
-
-  el.workSubcontractorFilter.innerHTML =
-    '<option value="">Todas</option>' +
-    subs.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
-
-  if (subs.includes(currentSub)) el.workSubcontractorFilter.value = currentSub;
-
-  renderWorkIncidents();
-  renderWorkParts();
-}
-
-
-function renderWorkIncidents() {
-  const incidents = state.workControl.incidents || [];
-  el.workIncidentPendingCount.textContent =
-    incidents.filter(i => i.status === 'PENDIENTE' || i.status === 'REVISAR').length;
-
-  if (!incidents.length) {
-    el.workIncidentsContainer.innerHTML =
-      '<div class="work-empty-small">No hay incidencias para este día.</div>';
-    return;
-  }
-
-  el.workIncidentsContainer.innerHTML = '';
-
-  incidents.forEach(incident => {
-    const card = document.createElement('article');
-    card.className = 'work-incident-card';
-    card.innerHTML = `
-      <div class="work-incident-head">
-        <div>
-          <strong>${esc(incident.worker || incident.email)}</strong>
-          <span>${esc(incident.project || '')} · ${esc(incident.subcontractor || '')}</span>
-        </div>
-        <span class="work-status-badge ${String(incident.status || '').toLowerCase()}">${esc(incident.status || 'PENDIENTE')}</span>
-      </div>
-      <div class="work-incident-body">
-        <strong>${esc(incident.type || 'INCIDENCIA')}</strong>
-        <p>${esc(incident.description || '')}</p>
-        ${incident.approxTime ? `<small>Hora aproximada: ${esc(incident.approxTime)}</small>` : ''}
-      </div>
-      <div class="work-card-actions">
-        ${incident.status !== 'RESUELTA' && incident.status !== 'RECHAZADA'
-          ? '<button class="btn btn-secondary incident-correct-btn" type="button">Corregir</button><button class="btn btn-secondary incident-review-btn" type="button">Marcar revisar</button><button class="btn btn-danger incident-discard-btn" type="button">Descartar</button>'
-          : ''}
-      </div>
-    `;
-
-    card.querySelector('.incident-correct-btn')?.addEventListener('click', () => openWorkCorrection(incident));
-    card.querySelector('.incident-review-btn')?.addEventListener('click', () => {
-      const resolution = window.prompt('Observación para dejar la incidencia en REVISAR:');
-      if (!resolution) return;
-      postToBackend('workControlIncidentUpdate', {
-        incidentRowNumber:incident.rowNumber,
-        incidentStatus:'REVISAR',
-        incidentResolution:resolution
-      });
-    });
-    card.querySelector('.incident-discard-btn')?.addEventListener('click', () => {
-      if (!window.confirm('¿Descartar esta incidencia?')) return;
-      postToBackend('workControlIncidentDiscard', {
-        incidentRowNumber:incident.rowNumber
-      });
-    });
-
+function renderWorkIncidents(){
+  const incidents=state.workControl.incidents||[];
+  el.workIncidentPendingCount.textContent=incidents.filter(i=>['PENDIENTE','REVISAR'].includes(i.status)).length;
+  if(!incidents.length){el.workIncidentsContainer.className='incidents-empty';el.workIncidentsContainer.innerHTML='No hay incidencias para este día.';return;}
+  el.workIncidentsContainer.className=''; el.workIncidentsContainer.innerHTML='';
+  incidents.forEach(incident=>{
+    const card=document.createElement('div'); card.className='incident-admin-card';
+    card.innerHTML=`<div class="incident-admin-top"><div><div class="incident-admin-name">${esc(incident.type||'INCIDENCIA')}</div><div class="incident-admin-meta">${esc(incident.worker||incident.email)} · ${esc(incident.project||'')} · ${esc(incident.subcontractor||'')}${incident.approxTime?' · '+esc(incident.approxTime):''}</div></div><span class="incident-status incident-status-${esc(incident.status||'PENDIENTE')}">${esc(incident.status||'PENDIENTE')}</span></div><div class="incident-admin-desc">${esc(incident.description||'Sin descripción')}</div><div class="incident-admin-actions">${!['RESUELTA','RECHAZADA'].includes(incident.status)?'<button type="button" class="incident-resolve-btn correct">CORREGIR</button><button type="button" class="incident-review-btn review">REVISAR</button><button type="button" class="incident-reject-btn discard">DESCARTAR</button>':''}</div>`;
+    card.querySelector('.correct')?.addEventListener('click',()=>openWorkCorrection(incident));
+    card.querySelector('.review')?.addEventListener('click',()=>{const r=window.prompt('Observación para dejar la incidencia en REVISAR:');if(r)postToBackend('workControlIncidentUpdate',{incidentRowNumber:incident.rowNumber,incidentStatus:'REVISAR',incidentResolution:r});});
+    card.querySelector('.discard')?.addEventListener('click',()=>{if(window.confirm('¿Descartar esta incidencia?'))postToBackend('workControlIncidentDiscard',{incidentRowNumber:incident.rowNumber});});
     el.workIncidentsContainer.appendChild(card);
   });
 }
 
-
-function filteredWorkParts() {
-  const sub = el.workSubcontractorFilter.value;
-  const stateFilter = el.workStateFilter.value;
-
-  return (state.workControl.parts || []).filter(part => {
-    if (sub && part.subcontractor !== sub) return false;
-    if (stateFilter && part.status !== stateFilter) return false;
-    return true;
-  });
-}
-
-
-function renderWorkParts() {
-  const parts = filteredWorkParts();
-
-  if (!parts.length) {
-    el.workPartsContainer.innerHTML =
-      '<div class="empty-state">No hay partes que coincidan con los filtros.</div>';
-    return;
-  }
-
-  const groups = {};
-  parts.forEach(part => {
-    const key = `${part.project}|${part.subcontractor}|${part.worker}`;
-    (groups[key] ||= []).push(part);
-  });
-
-  el.workPartsContainer.innerHTML = '';
-
-  Object.values(groups).forEach(rows => {
-    const block = document.createElement('section');
-    block.className = 'work-part-group';
-    const first = rows[0];
-    const pendingRows = rows.filter(r => r.status === 'PENDIENTE').map(r => r.rowNumber);
-
-    block.innerHTML = `
-      <div class="work-part-group-head">
-        <div>
-          <strong>${esc(first.worker || first.email)}</strong>
-          <span>${esc(first.project || '')} · ${esc(first.subcontractor || '')}</span>
-        </div>
-        ${pendingRows.length
-          ? `<button class="btn btn-secondary btn-sm validate-group-btn" type="button">Validar pendientes (${pendingRows.length})</button>`
-          : ''}
-      </div>
-      <div class="work-part-list"></div>
-    `;
-
-    block.querySelector('.validate-group-btn')?.addEventListener('click', () => {
-      if (!window.confirm(`¿Validar ${pendingRows.length} tarea(s) pendientes de este bloque?`)) return;
-      postToBackend('workControlBulkValidate', {rowNumbers:pendingRows});
-    });
-
-    const list = block.querySelector('.work-part-list');
-
-    rows.forEach(part => {
-      const item = document.createElement('article');
-      item.className = 'work-part-card';
-      item.innerHTML = `
-        <div class="work-part-main">
-          <div class="work-part-title">${esc(part.task || 'Tarea')}</div>
-          <div class="work-part-meta">
-            ${esc(part.entryTime || '')}${part.exitTime ? '–' + esc(part.exitTime) : ''}
-            ${part.hours ? ' · ' + esc(part.hours) : ''}
-            ${part.zone ? ' · ' + esc(part.zone) : ''}
-          </div>
-          ${part.description ? `<p>${esc(part.description)}</p>` : ''}
-          ${part.observation ? `<small>Obs.: ${esc(part.observation)}</small>` : ''}
-        </div>
-        <div class="work-part-side">
-          <span class="work-status-badge ${String(part.status || '').toLowerCase()}">${esc(workStatusLabel(part.status))}</span>
-          <div class="work-part-actions">
-            <button type="button" class="mini-action validate">Validar</button>
-            <button type="button" class="mini-action review">Revisar</button>
-            <button type="button" class="mini-action reject">Rechazar</button>
-          </div>
-        </div>
-      `;
-
-      item.querySelector('.validate').addEventListener('click', () => {
-        postToBackend('workControlUpdate', {
-          rowNumber:part.rowNumber,
-          status:'VALIDADO',
-          observation:''
-        });
-      });
-
-      item.querySelector('.review').addEventListener('click', () => {
-        const observation = window.prompt('Observación para REVISAR:');
-        if (!observation) return;
-        postToBackend('workControlUpdate', {
-          rowNumber:part.rowNumber,
-          status:'REVISAR',
-          observation
-        });
-      });
-
-      item.querySelector('.reject').addEventListener('click', () => {
-        const observation = window.prompt('Motivo de RECHAZO:');
-        if (!observation) return;
-        postToBackend('workControlUpdate', {
-          rowNumber:part.rowNumber,
-          status:'RECHAZADO',
-          observation
-        });
-      });
-
-      list.appendChild(item);
-    });
-
+function filteredWorkParts(){const sub=el.workSubcontractorFilter.value,stateFilter=el.workStateFilter.value;return(state.workControl.parts||[]).filter(p=>(!sub||p.subcontractor===sub)&&(!stateFilter||p.status===stateFilter));}
+function renderWorkParts(){
+  const parts=filteredWorkParts(); if(!parts.length){el.workPartsContainer.innerHTML='<div class="empty-state">No hay partes que coincidan con los filtros.</div>';return;}
+  const groups={}; parts.forEach(p=>{const k=`${p.project}|${p.subcontractor}|${p.worker}`;(groups[k]||=[]).push(p);});
+  el.workPartsContainer.innerHTML='';
+  Object.values(groups).forEach(rows=>{
+    const first=rows[0], pendingRows=rows.filter(r=>r.status==='PENDIENTE').map(r=>r.rowNumber);
+    const block=document.createElement('section');block.className='work-part-group';
+    block.innerHTML=`<div class="work-part-group-head"><div><strong>${esc(first.worker||first.email)}</strong><span>${esc(first.project||'')} · ${esc(first.subcontractor||'')}</span></div>${pendingRows.length?`<button class="btn btn-secondary btn-sm validate-group-btn" type="button">Validar pendientes (${pendingRows.length})</button>`:''}</div><div class="work-part-list"></div>`;
+    block.querySelector('.validate-group-btn')?.addEventListener('click',()=>{if(window.confirm(`¿Validar ${pendingRows.length} tarea(s) pendientes?`))postToBackend('workControlBulkValidate',{rowNumbers:pendingRows});});
+    const list=block.querySelector('.work-part-list');
+    rows.forEach(part=>{const item=document.createElement('article');item.className='work-part-card';item.innerHTML=`<div class="work-part-main"><div class="work-part-title">${esc(part.task||'Tarea')}</div><div class="work-part-meta">${esc(part.entryTime||'')}${part.exitTime?'–'+esc(part.exitTime):''}${part.hours?' · '+esc(part.hours):''}${part.zone?' · '+esc(part.zone):''}</div>${part.description?`<p>${esc(part.description)}</p>`:''}${part.observation?`<small>Obs.: ${esc(part.observation)}</small>`:''}</div><div class="work-part-side"><span class="work-status-badge ${String(part.status||'').toLowerCase()}">${esc(workStatusLabel(part.status))}</span><div class="work-part-actions"><button class="mini-action validate" type="button">Validar</button><button class="mini-action review" type="button">Revisar</button><button class="mini-action reject" type="button">Rechazar</button></div></div>`;
+      item.querySelector('.validate').addEventListener('click',()=>postToBackend('workControlUpdate',{rowNumber:part.rowNumber,status:'VALIDADO',observation:''}));
+      item.querySelector('.review').addEventListener('click',()=>{const o=window.prompt('Observación para REVISAR:');if(o)postToBackend('workControlUpdate',{rowNumber:part.rowNumber,status:'REVISAR',observation:o});});
+      item.querySelector('.reject').addEventListener('click',()=>{const o=window.prompt('Motivo de RECHAZO:');if(o)postToBackend('workControlUpdate',{rowNumber:part.rowNumber,status:'RECHAZADO',observation:o});});
+      list.appendChild(item);});
     el.workPartsContainer.appendChild(block);
   });
 }
 
+function handleWorkControlMutation(payload){if(!payload?.ok){setStatus(el.workControlStatus,payload?.message||'No se ha podido guardar el cambio.','error');return;}closeWorkCorrection();setStatus(el.workControlStatus,'Cambio guardado.','success');postToBackend('workControlDay',{project:state.workControl.selectedProject,date:state.workControl.selectedDate});setTimeout(()=>postToBackend('workControlMonth',{project:state.workControl.selectedProject,month:workMonthKey(state.workControl.currentMonth)}),300);}
 
-function handleWorkControlMutation(payload) {
-  if (!payload?.ok) {
-    setStatus(el.workControlStatus, payload?.message || 'No se ha podido guardar el cambio.', 'error');
-    return;
-  }
+function openWorkCorrection(incident){
+  state.workControl.correctionIncident=incident;const correction=incident.correction||{},mode=correction.mode||'MANUAL';
+  el.workCorrectionIncidentText.textContent=`${incident.worker||incident.email} · ${incident.project||''} · ${incident.description||''}`;
+  let html='';
+  if(mode==='PROJECT')html=`<label><span>Bloque a corregir</span><select id="wcBlock">${(correction.blocks||[]).map(b=>`<option value="${esc(b.id)}">${esc(b.project)} · ${esc(b.entryTime)}${b.exitTime?'–'+esc(b.exitTime):' · abierta'}</option>`).join('')}</select></label><label><span>Proyecto correcto</span><select id="wcProject">${(correction.projects||[]).map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('')}</select></label>`;
+  else if(mode==='EXIT')html=`<label><span>Entrada abierta</span><select id="wcBlock">${(correction.blocks||[]).map(b=>`<option value="${esc(b.id)}">${esc(b.project)} · entrada ${esc(b.entryTime)}</option>`).join('')}</select></label><label><span>Hora de salida</span><input id="wcExitTime" type="time"></label>`;
+  else if(mode==='ENTRY')html=`<label><span>Proyecto</span><select id="wcProject">${(correction.projects||[]).map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('')}</select></label><label><span>Hora de entrada</span><input id="wcEntryTime" type="time"></label><label><span>Hora de salida</span><input id="wcExitTime" type="time"></label>`;
+  else html='<div class="empty-state">Este tipo de incidencia requiere revisión manual.</div>';
+  el.workCorrectionFields.innerHTML=html;el.saveWorkCorrectionBtn.classList.toggle('hidden',mode==='MANUAL');el.workIncidentCorrectionModal.classList.remove('hidden');
+}
+function closeWorkCorrection(){el.workIncidentCorrectionModal.classList.add('hidden');state.workControl.correctionIncident=null;el.workCorrectionFields.innerHTML='';}
+function saveWorkCorrection(){const i=state.workControl.correctionIncident;if(!i)return;postToBackend('workControlIncidentCorrect',{incidentRowNumber:i.rowNumber,correctionBlockId:document.getElementById('wcBlock')?.value||'',correctionProject:document.getElementById('wcProject')?.value||'',correctionEntryTime:document.getElementById('wcEntryTime')?.value||'',correctionExitTime:document.getElementById('wcExitTime')?.value||''});}
 
-  closeWorkCorrection();
-  setStatus(el.workControlStatus, 'Cambio guardado.', 'success');
+/* MAQUINARIA · BETA 3 INTEGRADA */
+const EQUIPMENT_GEOREF = {
+  imageWidth:4963,
+  imageHeight:3509,
+  originE:710000.0,
+  originN:4665500.0,
+  // Robust global affine fallback. P10 is excluded from calibration because it
+  // behaves as a clear outlier against the rest of the control network.
+  px:{a:2.54696676,b:-3.23890439,c:2090.78949737},
+  py:{a:-3.24378133,b:-2.55343643,c:3015.05760}
+};
 
-  // Serializamos: primero día. Después mes desde el handler.
-  postToBackend('workControlDay', {
-    project:state.workControl.selectedProject,
-    date:state.workControl.selectedDate
+// Exact control correspondences on the current 4963 x 3509 campus raster.
+// They allow a piecewise-affine transform: each point inside the calibrated
+// campus is resolved by barycentric interpolation in its local triangle.
+const EQUIPMENT_CONTROL_POINTS = {
+  1:{e:710177.486,n:4666154.421,x:421.75,y:769.64},
+  2:{e:710244.400,n:4666013.365,x:1058.16,y:917.28},
+  3:{e:710660.219,n:4665487.225,x:3809.22,y:917.17},
+  4:{e:710478.441,n:4665346.198,x:3808.97,y:1855.59},
+  5:{e:710638.440,n:4665304.345,x:4353.76,y:1446.58},
+  6:{e:710504.199,n:4665194.668,x:4369.94,y:2163.06},
+  7:{e:710216.812,n:4665597.285,x:2324.73,y:2064.63},
+  8:{e:710062.441,n:4665869.793,x:1054.60,y:1864.69},
+  9:{e:710189.556,n:4666206.790,x:281.70,y:593.61},
+  11:{e:709927.119,n:4665632.970,x:1472.0,y:2913.0},
+  12:{e:709982.573,n:4665559.198,x:1852.05,y:2914.13},
+  13:{e:710088.571,n:4665509.434,x:2282.05,y:2705.63},
+  14:{e:710089.486,n:4665219.003,x:3227.90,y:3440.05},
+  15:{e:710197.247,n:4665219.004,x:3500.31,y:3095.19},
+  16:{e:710197.382,n:4665371.269,x:3020.0,y:2703.0},
+  17:{e:710378.684,n:4665368.012,x:3486.53,y:2124.18},
+  18:{e:710419.712,n:4665052.468,x:4605.67,y:2798.03},
+  19:{e:710774.007,n:4665412.580,x:4339.65,y:710.01}
+};
+
+const EQUIPMENT_TRIANGLES = [
+  [8,9,11],[7,8,11],[2,8,7],[3,2,7],[9,3,19],[2,3,9],[8,1,9],[1,2,9],[2,1,8],
+  [5,18,19],[3,5,19],[5,3,4],[15,14,18],[14,12,11],[13,12,14],[12,7,11],[12,13,7],
+  [5,6,18],[6,5,4],[6,15,18],[16,13,14],[15,16,14],[13,16,7],[16,17,7],[17,3,7],
+  [3,17,4],[17,16,15],[17,6,4],[6,17,15]
+];
+
+const EQUIPMENT_SITE_LABELS = [
+  {name:'ZAZ121',x:34.4,y:30.0},{name:'ZAZ111',x:34.4,y:49.3},
+  {name:'ZAZ081',x:64.0,y:30.0},{name:'ZAZ101',x:64.0,y:49.3},
+  {name:'ZAZ091',x:86.0,y:51.5},{name:'AWB',x:45.0,y:60.7},{name:'ACB',x:85.3,y:81.8}
+];
+
+window.addEventListener('load', () => {
+  document.getElementById('backendForm').action = BACKEND_WEBAPP_URL;
+
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleCredentialResponse,
+    auto_select: true,
+    cancel_on_tap_outside: false
   });
 
-  setTimeout(() => {
-    postToBackend('workControlMonth', {
-      project:state.workControl.selectedProject,
-      month:workMonthKey(state.workControl.currentMonth)
-    });
-  }, 250);
-}
-
-
-function openWorkCorrection(incident) {
-  state.workControl.correctionIncident = incident;
-  const correction = incident.correction || {};
-  const mode = correction.mode || 'MANUAL';
-
-  el.workCorrectionIncidentText.textContent =
-    `${incident.worker || incident.email} · ${incident.project || ''} · ${incident.description || ''}`;
-
-  let html = '';
-
-  if (mode === 'PROJECT') {
-    html = `
-      <label><span>Bloque a corregir</span><select id="wcBlock">
-        ${(correction.blocks || []).map(b => `<option value="${esc(b.id)}">${esc(b.project)} · ${esc(b.entryTime)}${b.exitTime ? '–'+esc(b.exitTime) : ' · abierta'}</option>`).join('')}
-      </select></label>
-      <label><span>Proyecto correcto</span><select id="wcProject">
-        ${(correction.projects || []).map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('')}
-      </select></label>`;
-  } else if (mode === 'EXIT') {
-    html = `
-      <label><span>Entrada abierta</span><select id="wcBlock">
-        ${(correction.blocks || []).map(b => `<option value="${esc(b.id)}">${esc(b.project)} · entrada ${esc(b.entryTime)}</option>`).join('')}
-      </select></label>
-      <label><span>Hora de salida</span><input id="wcExitTime" type="time"></label>`;
-  } else if (mode === 'ENTRY') {
-    html = `
-      <label><span>Proyecto</span><select id="wcProject">
-        ${(correction.projects || []).map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('')}
-      </select></label>
-      <label><span>Hora de entrada</span><input id="wcEntryTime" type="time"></label>
-      <label><span>Hora de salida</span><input id="wcExitTime" type="time"></label>`;
-  } else {
-    html = `
-      <div class="empty-state">
-        Este tipo de incidencia requiere revisión manual. Puedes marcarla como REVISAR o descartarla.
-      </div>`;
-  }
-
-  el.workCorrectionFields.innerHTML = html;
-  el.saveWorkCorrectionBtn.classList.toggle('hidden', mode === 'MANUAL');
-  el.workIncidentCorrectionModal.classList.remove('hidden');
-}
-
-
-function closeWorkCorrection() {
-  el.workIncidentCorrectionModal.classList.add('hidden');
-  state.workControl.correctionIncident = null;
-  el.workCorrectionFields.innerHTML = '';
-}
-
-
-function saveWorkCorrection() {
-  const incident = state.workControl.correctionIncident;
-  if (!incident) return;
-
-  postToBackend('workControlIncidentCorrect', {
-    incidentRowNumber:incident.rowNumber,
-    correctionBlockId:document.getElementById('wcBlock')?.value || '',
-    correctionProject:document.getElementById('wcProject')?.value || '',
-    correctionEntryTime:document.getElementById('wcEntryTime')?.value || '',
-    correctionExitTime:document.getElementById('wcExitTime')?.value || ''
-  });
-}
-
-
-/* MAQUINARIA · VISTA GLOBAL */
-function openEquipmentGlobal() {
-  show(el.equipmentGlobalView);
-  setStatus(el.equipmentGlobalStatus, 'Cargando maquinaria…');
-  postToBackend('equipmentLocationsGlobal', {});
-}
-
-
-function handleEquipmentLocationsGlobal(payload) {
-  if (!payload?.ok) {
-    setStatus(el.equipmentGlobalStatus, payload?.message || 'No se ha podido cargar maquinaria.', 'error');
-    return;
-  }
-
-  state.equipmentGlobal = Array.isArray(payload.locations) ? payload.locations : [];
-
-  if (payload.configured === false) {
-    setStatus(el.equipmentGlobalStatus, payload.message || 'Módulo de maquinaria pendiente de configurar.', 'info');
-  } else {
-    clearStatus(el.equipmentGlobalStatus);
-  }
-
-  renderEquipmentGlobalFilters();
-  renderEquipmentGlobal();
-}
-
-
-function renderEquipmentGlobalFilters() {
-  const projects = [...new Set(
-    (state.equipmentGlobal || []).map(x => x.project).filter(Boolean)
-  )].sort((a,b)=>a.localeCompare(b,'es'));
-
-  const current = el.equipmentGlobalProjectFilter.value;
-  el.equipmentGlobalProjectFilter.innerHTML =
-    '<option value="">Todos</option>' +
-    projects.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
-
-  if (projects.includes(current)) el.equipmentGlobalProjectFilter.value = current;
-}
-
-
-function renderEquipmentGlobal() {
-  const all = state.equipmentGlobal || [];
-  const q = el.equipmentGlobalSearch.value.trim().toLowerCase();
-  const project = el.equipmentGlobalProjectFilter.value;
-
-  const filtered = all.filter(item => {
-    if (project && item.project !== project) return false;
-    if (q) {
-      const haystack = [
-        item.equipmentId,item.name,item.type,item.supplier,item.project,item.trackerId,item.imei
-      ].join(' ').toLowerCase();
-      if (!haystack.includes(q)) return false;
+  google.accounts.id.renderButton(
+    document.getElementById('googleButton'),
+    {
+      theme:'outline',
+      size:'large',
+      text:'continue_with',
+      width:320
     }
-    return true;
+  );
+
+  google.accounts.id.prompt();
+
+  document.getElementById('prevMonth').addEventListener('click', () => changeMonth(-1));
+  document.getElementById('nextMonth').addEventListener('click', () => changeMonth(1));
+  document.getElementById('projectFilter').addEventListener('change', renderParts);
+  document.getElementById('subFilter').addEventListener('change', renderParts);
+  document.getElementById('stateFilter').addEventListener('change', () => {
+    if (document.getElementById('stateFilter').value) {
+      incidentsOnly = false;
+      document.getElementById('incidentsToggle').classList.remove('active');
+    }
+    renderParts();
   });
 
-  el.equipmentGlobalCount.textContent = all.length;
-  el.equipmentPositionCount.textContent =
-    all.filter(x => Number.isFinite(Number(x.easting)) && Number.isFinite(Number(x.northing))).length;
-  el.equipmentNoPositionCount.textContent =
-    all.length - Number(el.equipmentPositionCount.textContent);
+  document.getElementById('incidentsToggle').addEventListener('click', () => {
+    incidentsOnly = !incidentsOnly;
+
+    const btn = document.getElementById('incidentsToggle');
+    btn.classList.toggle('active', incidentsOnly);
+
+    if (incidentsOnly) {
+      // El filtro rápido manda sobre el selector de estado.
+      document.getElementById('stateFilter').value = '';
+    }
+
+    renderParts();
+  });
+
+  document.getElementById('workTab').addEventListener('click', () => switchModule('work'));
+  document.getElementById('equipmentTab').addEventListener('click', () => switchModule('equipment'));
+  document.getElementById('equipmentRefresh').addEventListener('click', loadEquipmentLocations);
+  document.getElementById('equipmentProjectFilter').addEventListener('change', renderEquipmentModule);
+  document.getElementById('equipmentTypeFilter').addEventListener('change', renderEquipmentModule);
+  document.getElementById('equipmentCleanMap').addEventListener('click', toggleEquipmentCleanMap);
+  document.getElementById('equipmentFullscreen').addEventListener('click', toggleEquipmentFullscreen);
+  document.getElementById('presenceRefresh').addEventListener('click', loadPresence);
+  document.getElementById('presenceProjects').addEventListener('click', handlePresenceClick);
+  document.getElementById('equipmentDetailPop').addEventListener('click', event => {
+    if (event.target && event.target.id === 'equipmentDetailClose') closeEquipmentDetail();
+  });
+  renderEquipmentSiteLabels();
+});
+
+function handleCredentialResponse(response) {
+  if (!response || !response.credential) {
+    showStatus('No se pudo obtener la identidad de Google.', 'err');
+    return;
+  }
+
+  googleCredential = response.credential;
+  showStatus('Validando acceso…', 'info');
+  postToBackend({
+    action:'adminBootstrap',
+    credential:googleCredential
+  });
+}
+
+function postToBackend(data, context = null) {
+  requestContext = context;
+
+  ['action','credential','month','date','rowNumber','status','observation','rowNumbersJson',
+   'incidentRowNumber','incidentStatus','incidentResolution',
+   'correctionBlockId','correctionProject','correctionEntryTime','correctionExitTime']
+    .forEach(k => {
+      const el = document.getElementById('f_' + k);
+      if (el) el.value = '';
+    });
+
+  Object.entries(data).forEach(([k,v]) => {
+    const el = document.getElementById('f_' + k);
+    if (el) el.value = v == null ? '' : String(v);
+  });
+
+  document.getElementById('backendForm').submit();
+}
+
+window.addEventListener('message', event => {
+  if (
+    event.origin !== 'https://script.google.com' &&
+    !event.origin.endsWith('.googleusercontent.com')
+  ) return;
+
+  const data = event.data || {};
+  if (data.source !== 'LEVITEC_BACKEND') return;
+
+  if (!data.ok) {
+    showStatus(data.message || 'Se ha producido un error.', 'err');
+
+    // Si una actualización optimista falla, recargamos el día
+    // para devolver la interfaz al estado real guardado en Sheets.
+    if (
+      data.type === 'adminUpdate' ||
+      data.type === 'adminBulkValidate' ||
+      data.type === 'adminIncidentUpdate' ||
+      data.type === 'adminIncidentCorrect' ||
+      data.type === 'adminIncidentDiscard'
+    ) {
+      setTimeout(() => loadDay(selectedDate), 700);
+    }
+
+    return;
+  }
+
+  if (data.type === 'adminBootstrap') {
+    manager = data;
+    document.getElementById('managerName').textContent = data.name;
+    document.getElementById('managerEmail').textContent = data.email;
+    document.getElementById('managerRole').textContent = data.role;
+    document.getElementById('loginBox').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    hideStatus();
+
+    loadMonth();
+    loadDay(selectedDate);
+    loadPresence();
+    return;
+  }
+
+  if (data.type === 'adminMonth') {
+    monthActivity = {};
+    (data.days || []).forEach(d => monthActivity[d.date] = d);
+    renderCalendar();
+    return;
+  }
+
+  if (data.type === 'adminDay') {
+    currentParts = Array.isArray(data.parts) ? data.parts : [];
+    currentIncidents = Array.isArray(data.incidents) ? data.incidents : [];
+    populateFilters();
+    updateSummary();
+    renderIncidents();
+    renderParts();
+    hideStatus();
+    return;
+  }
+
+  if (data.type === 'adminPresence') {
+    presenceLoaded = true;
+    currentPresence = Array.isArray(data.presence) ? data.presence : [];
+    const updated = document.getElementById('presenceUpdated');
+    if (updated) {
+      updated.textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'});
+    }
+    renderPresence();
+    hideStatus();
+    return;
+  }
+
+  if (data.type === 'equipmentLocations') {
+    equipmentLoaded = true;
+    currentEquipment = Array.isArray(data.locations) ? data.locations : [];
+
+    if (!data.configured) {
+      document.getElementById('equipmentUpdated').textContent = data.message || 'Módulo pendiente de configurar.';
+    } else {
+      document.getElementById('equipmentUpdated').textContent =
+        'Última consulta: ' + new Date().toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'});
+    }
+
+    populateEquipmentFilters();
+    renderEquipmentModule();
+    hideStatus();
+    return;
+  }
+
+  if (data.type === 'adminUpdate') {
+    const part = currentParts.find(
+      p => Number(p.rowNumber) === Number(data.rowNumber)
+    );
+
+    if (part) {
+      part.status = data.status;
+      part.validatedBy = data.validatedBy || '';
+      part.observation = data.observation || '';
+      part._saving = false;
+    }
+
+    showStatus('Tarea guardada correctamente.', 'ok');
+
+    // El cambio visual ya se hizo al pulsar.
+    // Solo refrescamos los indicadores del calendario.
+    updateSummary();
+    loadMonth();
+    return;
+  }
+
+  if (data.type === 'adminBulkValidate') {
+    showStatus(
+      (data.updated || 0) + ' tarea(s) pendiente(s) validadas.',
+      'ok'
+    );
+
+    currentParts.forEach(p => p._saving = false);
+    updateSummary();
+    loadMonth();
+    return;
+  }
+
+  if (
+    data.type === 'adminIncidentCorrect' ||
+    data.type === 'adminIncidentDiscard'
+  ) {
+    const incident = currentIncidents.find(
+      i => Number(i.rowNumber) === Number(data.rowNumber)
+    );
+
+    if (incident) {
+      incident.status = data.status;
+      incident.resolvedBy = data.resolvedBy || '';
+      incident.resolution = data.resolution || '';
+      incident.resolutionDate = data.resolutionDate || '';
+      incident._saving = false;
+    }
+
+    renderIncidents();
+    updateSummary();
+    loadMonth();
+
+    showStatus(
+      data.type === 'adminIncidentCorrect'
+        ? 'Incidencia corregida y cerrada.'
+        : 'Incidencia descartada.',
+      'ok'
+    );
+    return;
+  }
+
+  if (data.type === 'adminIncidentUpdate') {
+    const incident = currentIncidents.find(
+      i => Number(i.rowNumber) === Number(data.rowNumber)
+    );
+
+    if (incident) {
+      incident.status = data.status;
+      incident.resolvedBy = data.resolvedBy || '';
+      incident.resolution = data.resolution || '';
+      incident.resolutionDate = data.resolutionDate || '';
+      incident._saving = false;
+    }
+
+    renderIncidents();
+    updateSummary();
+    loadMonth();
+
+    showStatus('Incidencia actualizada correctamente.', 'ok');
+    return;
+  }
+});
+
+function loadMonth() {
+  if (!googleCredential) return;
+  postToBackend({
+    action:'adminMonth',
+    credential:googleCredential,
+    month:monthKey(currentMonth)
+  });
+}
+
+function loadDay(key) {
+  if (!googleCredential || !key) return;
+  selectedDate = key;
+  updateSelectedDateLabel();
+  renderCalendar();
+  showStatus('Cargando trabajos del día…', 'info');
+
+  postToBackend({
+    action:'adminDay',
+    credential:googleCredential,
+    date:key
+  });
+}
+
+function changeMonth(delta) {
+  currentMonth = new Date(
+    currentMonth.getFullYear(),
+    currentMonth.getMonth() + delta,
+    1
+  );
+
+  loadMonth();
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const title = new Intl.DateTimeFormat('es-ES', {
+    month:'long',
+    year:'numeric'
+  }).format(currentMonth);
+
+  document.getElementById('calendarTitle').textContent = title;
+
+  const grid = document.getElementById('calendarGrid');
+  grid.innerHTML = '';
+
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+
+  const first = new Date(year, month, 1);
+  const startOffset = (first.getDay() + 6) % 7;
+  const start = new Date(year, month, 1 - startOffset);
+
+  const today = dateKey(new Date());
+
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    const key = dateKey(d);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'day';
+    btn.textContent = d.getDate();
+
+    if (d.getMonth() !== month) btn.classList.add('other');
+    if (key === selectedDate) btn.classList.add('selected');
+    if (key === today) btn.classList.add('today');
+
+    const activity = monthActivity[key];
+
+    if (activity && activity.count > 0) {
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      btn.appendChild(dot);
+
+      if (activity.pending > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'pending-dot';
+        badge.textContent = activity.pending > 9 ? '9+' : activity.pending;
+        btn.appendChild(badge);
+      }
+    }
+
+    if (activity && activity.incidents > 0) {
+      const incidentMark = document.createElement('span');
+      incidentMark.className = 'incident-calendar-mark';
+      btn.appendChild(incidentMark);
+    }
+
+    btn.addEventListener('click', () => {
+      if (d.getMonth() !== currentMonth.getMonth() || d.getFullYear() !== currentMonth.getFullYear()) {
+        currentMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+        loadMonth();
+      }
+      loadDay(key);
+    });
+
+    grid.appendChild(btn);
+  }
+}
+
+function populateFilters() {
+  const project = document.getElementById('projectFilter');
+  const sub = document.getElementById('subFilter');
+
+  const oldProject = project.value;
+  const oldSub = sub.value;
+
+  const projects = uniqueSorted(currentParts.map(p => p.project));
+  const subs = uniqueSorted(currentParts.map(p => p.subcontractor));
+
+  project.innerHTML = '<option value="">Todos</option>' +
+    projects.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+
+  sub.innerHTML = '<option value="">Todas</option>' +
+    subs.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+
+  if (projects.includes(oldProject)) project.value = oldProject;
+  if (subs.includes(oldSub)) sub.value = oldSub;
+}
+
+function updateSummary() {
+  const workers = new Set(currentParts.map(p => p.email || p.worker)).size;
+  const tasks = currentParts.length;
+  const pending = currentParts.filter(p => p.status === 'PENDIENTE').length;
+  const review = currentParts.filter(p => p.status === 'REVISAR').length;
+  const rejected = currentParts.filter(p => p.status === 'RECHAZADO').length;
+
+  const incidentPending =
+    currentIncidents.filter(i => i.status === 'PENDIENTE').length;
+
+  document.getElementById('incidentsSummary').textContent =
+    currentIncidents.length +
+    (currentIncidents.length === 1 ? ' incidencia' : ' incidencias');
+
+  document.getElementById('incidentPendingCount').textContent =
+    incidentPending > 99 ? '99+' : String(incidentPending);
+
+  document.getElementById('workersSummary').textContent =
+    workers + (workers === 1 ? ' trabajador' : ' trabajadores');
+
+  document.getElementById('tasksSummary').textContent =
+    tasks + (tasks === 1 ? ' tarea' : ' tareas');
+
+  document.getElementById('pendingSummary').textContent =
+    pending + ' pendientes · ' + review + ' revisar · ' + rejected + ' rechazadas';
+}
+
+
+function renderIncidents() {
+  const container =
+    document.getElementById('incidentsContainer');
+
+  if (!currentIncidents.length) {
+    container.className = 'incidents-empty';
+    container.innerHTML = 'No hay incidencias para este día.';
+    return;
+  }
+
+  container.className = '';
+  container.innerHTML = '';
+
+  const order = {
+    PENDIENTE:0,
+    REVISAR:1,
+    RECHAZADA:2,
+    RESUELTA:3
+  };
+
+  [...currentIncidents]
+    .sort((a,b) =>
+      (order[a.status] ?? 9) - (order[b.status] ?? 9)
+    )
+    .forEach(incident => {
+      container.appendChild(
+        renderIncidentCard(incident)
+      );
+    });
+}
+
+
+function renderIncidentCard(incident) {
+  const el = document.createElement('div');
+  el.className = 'incident-admin-card';
+
+  const typeLabel = incidentTypeLabel(incident.type);
+  const meta = [
+    incident.worker || incident.email,
+    incident.subcontractor,
+    incident.project || 'Sin proyecto',
+    incident.approxTime ? 'Hora aprox. ' + incident.approxTime : ''
+  ].filter(Boolean).join(' · ');
+
+  const existingResolution = incident.resolution
+    ? `
+      <div class="incident-resolution-existing">
+        <strong>Resolución:</strong>
+        ${escapeHtml(incident.resolution)}
+        ${incident.resolvedBy ? `<br><span>${escapeHtml(incident.resolvedBy)}</span>` : ''}
+      </div>
+    `
+    : '';
+
+  const correction = incident.correction || {mode:'MANUAL', projects:[], blocks:[]};
+  const canQuickCorrect = ['PROJECT','EXIT','ENTRY'].includes(correction.mode) && incident.status !== 'RESUELTA';
+  const isClosed = ['RESUELTA','RECHAZADA'].includes(incident.status);
+
+  el.innerHTML = `
+    <div class="incident-admin-top">
+      <div>
+        <div class="incident-admin-name">${escapeHtml(typeLabel)}</div>
+        <div class="incident-admin-meta">${escapeHtml(meta)}</div>
+      </div>
+      <span class="incident-status incident-status-${incident.status}">${escapeHtml(incident.status)}</span>
+    </div>
+
+    <div class="incident-admin-desc">${escapeHtml(incident.description || 'Sin descripción')}</div>
+    ${existingResolution}
+
+    ${!isClosed ? `
+      <div class="incident-admin-actions">
+        ${canQuickCorrect ? '<button type="button" class="incident-resolve-btn quick-open">CORREGIR</button>' : '<button type="button" class="incident-review-btn manual-open">REVISAR</button>'}
+        <button type="button" class="incident-reject-btn quick-discard">DESCARTAR</button>
+      </div>
+    ` : ''}
+
+    <div class="quick-correction"></div>
+
+    <div class="incident-editor">
+      <label>Observación</label>
+      <textarea maxlength="700" placeholder="Añade una breve observación."></textarea>
+      <div class="incident-editor-actions">
+        <button type="button" class="incident-cancel-admin">CANCELAR</button>
+        <button type="button" class="incident-save-admin">GUARDAR</button>
+      </div>
+    </div>
+  `;
+
+  const quickOpen = el.querySelector('.quick-open');
+  if (quickOpen) {
+    quickOpen.addEventListener('click', () => {
+      openQuickCorrection(el, incident);
+    });
+  }
+
+  const discard = el.querySelector('.quick-discard');
+  if (discard) {
+    discard.addEventListener('click', () => {
+      if (!confirm('¿Descartar esta incidencia?')) return;
+      discardIncident(incident);
+    });
+  }
+
+  const manual = el.querySelector('.manual-open');
+  if (manual) {
+    manual.addEventListener('click', () => {
+      openIncidentEditor(el, incident, 'REVISAR');
+    });
+  }
+
+  const cancelAdmin = el.querySelector('.incident-cancel-admin');
+  if (cancelAdmin) {
+    cancelAdmin.addEventListener('click', () => {
+      el.querySelector('.incident-editor').classList.remove('open');
+    });
+  }
+
+  return el;
+}
+
+
+function openQuickCorrection(el, incident) {
+  const box = el.querySelector('.quick-correction');
+  const c = incident.correction || {};
+  box.innerHTML = '';
+
+  if (c.mode === 'PROJECT') {
+    const blocks = Array.isArray(c.blocks) ? c.blocks : [];
+    const projects = Array.isArray(c.projects) ? c.projects : [];
+
+    if (!blocks.length) {
+      showStatus('No se ha encontrado ningún bloque para corregir.', 'err');
+      return;
+    }
+
+    box.innerHTML = `
+      <div class="quick-correction-row">
+        <div>
+          <label>Bloque a corregir</label>
+          <select class="qc-block">
+            ${blocks.map(b => `<option value="${escapeHtml(b.id)}">${escapeHtml(b.project)} · ${escapeHtml(b.entryTime)}${b.exitTime ? '–' + escapeHtml(b.exitTime) : ' · abierta'}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label>Proyecto correcto</label>
+          <select class="qc-project">
+            ${projects.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="quick-correction-actions">
+        <button type="button" class="quick-cancel">CANCELAR</button>
+        <button type="button" class="quick-save">CORREGIR</button>
+      </div>
+    `;
+
+    const first = blocks[0];
+    const projectSelect = box.querySelector('.qc-project');
+    const alternative = projects.find(p => p !== first.project);
+    if (alternative) projectSelect.value = alternative;
+  }
+
+  if (c.mode === 'EXIT') {
+    const blocks = Array.isArray(c.blocks) ? c.blocks : [];
+
+    if (!blocks.length) {
+      showStatus('No se ha encontrado ninguna entrada abierta para este trabajador.', 'err');
+      return;
+    }
+
+    box.innerHTML = `
+      <div class="quick-correction-row">
+        <div>
+          <label>Entrada abierta</label>
+          <select class="qc-block">
+            ${blocks.map(b => `<option value="${escapeHtml(b.id)}">${escapeHtml(b.project)} · ${escapeHtml(b.entryTime)}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label>Hora de salida</label>
+          <input class="qc-exit" type="time" value="${escapeHtml(incident.approxTime || '')}">
+        </div>
+      </div>
+      <div class="quick-correction-actions">
+        <button type="button" class="quick-cancel">CANCELAR</button>
+        <button type="button" class="quick-save">CORREGIR</button>
+      </div>
+    `;
+  }
+
+  if (c.mode === 'ENTRY') {
+    const projects = Array.isArray(c.projects) ? c.projects : [];
+
+    box.innerHTML = `
+      <div class="quick-correction-row">
+        <div>
+          <label>Proyecto</label>
+          <select class="qc-project">
+            ${projects.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label>Hora de entrada</label>
+          <input class="qc-entry" type="time" value="${escapeHtml(incident.approxTime || '')}">
+        </div>
+      </div>
+      <div class="quick-correction-row">
+        <div>
+          <label>Hora de salida</label>
+          <input class="qc-exit" type="time">
+        </div>
+        <div></div>
+      </div>
+      <div class="quick-correction-actions">
+        <button type="button" class="quick-cancel">CANCELAR</button>
+        <button type="button" class="quick-save">CORREGIR</button>
+      </div>
+    `;
+
+    if (incident.project && projects.includes(incident.project)) {
+      box.querySelector('.qc-project').value = incident.project;
+    }
+  }
+
+  box.classList.add('open');
+
+  box.querySelector('.quick-cancel').onclick = () => {
+    box.classList.remove('open');
+  };
+
+  box.querySelector('.quick-save').onclick = () => {
+    sendQuickCorrection(box, incident);
+  };
+}
+
+
+function sendQuickCorrection(box, incident) {
+  if (incident._saving) return;
+
+  const payload = {
+    action:'adminIncidentCorrect',
+    credential:googleCredential,
+    incidentRowNumber:incident.rowNumber,
+    correctionBlockId:'',
+    correctionProject:'',
+    correctionEntryTime:'',
+    correctionExitTime:''
+  };
+
+  const block = box.querySelector('.qc-block');
+  const project = box.querySelector('.qc-project');
+  const entry = box.querySelector('.qc-entry');
+  const exit = box.querySelector('.qc-exit');
+
+  if (block) payload.correctionBlockId = block.value;
+  if (project) payload.correctionProject = project.value;
+  if (entry) payload.correctionEntryTime = entry.value;
+  if (exit) payload.correctionExitTime = exit.value;
+
+  if (incident.correction.mode === 'PROJECT' && (!payload.correctionBlockId || !payload.correctionProject)) {
+    showStatus('Selecciona el bloque y el proyecto correcto.', 'err');
+    return;
+  }
+
+  if (incident.correction.mode === 'EXIT' && (!payload.correctionBlockId || !payload.correctionExitTime)) {
+    showStatus('Selecciona la entrada e indica la hora de salida.', 'err');
+    return;
+  }
+
+  if (incident.correction.mode === 'ENTRY' && (!payload.correctionProject || !payload.correctionEntryTime || !payload.correctionExitTime)) {
+    showStatus('Indica proyecto, entrada y salida.', 'err');
+    return;
+  }
+
+  incident._saving = true;
+  showStatus('Aplicando corrección…', 'info');
+  postToBackend(payload);
+}
+
+
+function discardIncident(incident) {
+  if (incident._saving) return;
+  incident._saving = true;
+  showStatus('Descartando incidencia…', 'info');
+
+  postToBackend({
+    action:'adminIncidentDiscard',
+    credential:googleCredential,
+    incidentRowNumber:incident.rowNumber
+  });
+}
+
+
+function openIncidentEditor(
+  el,
+  incident,
+  status
+) {
+  const editor =
+    el.querySelector('.incident-editor');
+
+  const textarea =
+    editor.querySelector('textarea');
+
+  const save =
+    editor.querySelector('.incident-save-admin');
+
+  textarea.value =
+    incident.resolution || '';
+
+  editor.classList.add('open');
+  textarea.focus();
+
+  save.onclick = () => {
+    const resolution =
+      textarea.value.trim();
+
+    if (!resolution) {
+      showStatus(
+        'Debes indicar una observación o resolución.',
+        'err'
+      );
+      return;
+    }
+
+    updateIncident(
+      incident.rowNumber,
+      status,
+      resolution
+    );
+  };
+}
+
+
+function updateIncident(
+  rowNumber,
+  status,
+  resolution
+) {
+  const incident =
+    currentIncidents.find(
+      i => Number(i.rowNumber) === Number(rowNumber)
+    );
+
+  if (!incident || incident._saving) return;
+
+  incident.status = status;
+  incident.resolution = resolution;
+  incident.resolvedBy =
+    manager && manager.email
+      ? manager.email
+      : '';
+  incident._saving = true;
+
+  renderIncidents();
+  updateSummary();
+
+  showStatus(
+    'Guardando incidencia…',
+    'info'
+  );
+
+  postToBackend({
+    action:'adminIncidentUpdate',
+    credential:googleCredential,
+    incidentRowNumber:rowNumber,
+    incidentStatus:status,
+    incidentResolution:resolution
+  });
+}
+
+
+function incidentTypeLabel(type) {
+  const labels = {
+    OLVIDO_ENTRADA:'Olvido de ENTRADA',
+    OLVIDO_SALIDA:'Olvido de SALIDA',
+    PROYECTO_INCORRECTO:'Proyecto incorrecto',
+    FICHAJE_NO_REGISTRADO:'Fichaje no registrado',
+    OTRO:'Otro'
+  };
+
+  return labels[type] || type || 'Incidencia';
+}
+
+
+
+function renderParts() {
+  const projectFilter = document.getElementById('projectFilter').value;
+  const subFilter = document.getElementById('subFilter').value;
+  const stateFilter = document.getElementById('stateFilter').value;
+
+  const filtered = currentParts.filter(p =>
+    (!projectFilter || p.project === projectFilter) &&
+    (!subFilter || p.subcontractor === subFilter) &&
+    (!stateFilter || p.status === stateFilter) &&
+    (!incidentsOnly || ['REVISAR','RECHAZADO'].includes(p.status))
+  );
+
+  const container = document.getElementById('partsContainer');
 
   if (!filtered.length) {
-    el.equipmentGlobalList.innerHTML = '<div class="empty-state">No hay maquinaria que coincida con los filtros.</div>';
+    container.className = 'empty';
+    container.innerHTML = 'No hay tareas que coincidan con los filtros seleccionados.';
     return;
   }
 
-  el.equipmentGlobalList.innerHTML = filtered.map(item => `
-    <article class="equipment-global-card">
+  container.className = '';
+  container.innerHTML = '';
+
+  const bySub = groupBy(filtered, p => p.subcontractor || 'SIN SUBCONTRATA');
+
+  Object.keys(bySub).sort(localeSort).forEach(subName => {
+    const subParts = bySub[subName];
+
+    const subGroup = document.createElement('section');
+    subGroup.className = 'sub-group';
+
+    const subHead = document.createElement('div');
+    subHead.className = 'sub-head';
+    const subWorkers =
+      new Set(subParts.map(p => p.email || p.worker)).size;
+
+    const subPending =
+      subParts.filter(p => p.status === 'PENDIENTE').length;
+
+    const subIncidents =
+      subParts.filter(p => ['REVISAR','RECHAZADO'].includes(p.status)).length;
+
+    subHead.innerHTML = `
       <div>
-        <strong>${esc(item.name || item.equipmentId || 'Equipo')}</strong>
-        <span>${esc(item.type || '')}${item.supplier ? ' · '+esc(item.supplier) : ''}</span>
+        <div class="sub-name">${escapeHtml(subName)}</div>
+        <div class="sub-stats">
+          ${subWorkers} trabajador(es) · ${subParts.length} tarea(s) ·
+          ${subPending} pendiente(s) · ${subIncidents} incidencia(s)
+        </div>
       </div>
-      <div class="equipment-global-tags">
-        ${item.project ? `<span>${esc(item.project)}</span>` : ''}
-        ${item.trackerStatus ? `<span>${esc(item.trackerStatus)}</span>` : ''}
-      </div>
-      <dl>
-        <dt>ID</dt><dd>${esc(item.equipmentId || '—')}</dd>
-        <dt>Tracker</dt><dd>${esc(item.trackerId || '—')}</dd>
-        <dt>Batería</dt><dd>${item.battery == null ? '—' : esc(item.battery) + '%'}</dd>
-        <dt>Posición E/N</dt><dd>${item.easting == null || item.northing == null ? 'Sin posición' : `${esc(item.easting)} / ${esc(item.northing)}`}</dd>
-        <dt>Última posición</dt><dd>${esc(item.lastPosition || '—')}</dd>
-        <dt>Última comunicación</dt><dd>${esc(item.lastCommunication || '—')}</dd>
-      </dl>
-    </article>
-  `).join('');
+      <div class="sub-count">${subParts.length} tarea(s)</div>
+    `;
+    subGroup.appendChild(subHead);
+
+    const byProject = groupBy(subParts, p => p.project || 'SIN PROYECTO');
+
+    Object.keys(byProject).sort(localeSort).forEach(projectName => {
+      const projectParts = byProject[projectName];
+
+      const projectGroup = document.createElement('div');
+      projectGroup.className = 'project-group';
+
+      const projectTitle = document.createElement('div');
+      projectTitle.className = 'project-title';
+      projectTitle.textContent = projectName;
+      projectGroup.appendChild(projectTitle);
+
+      const byWorkerBlock = groupBy(
+        projectParts,
+        p => [p.email, p.entry, p.exit].join('|')
+      );
+
+      Object.keys(byWorkerBlock).forEach(blockKey => {
+        const block = byWorkerBlock[blockKey];
+        projectGroup.appendChild(renderWorkerBlock(block));
+      });
+
+      subGroup.appendChild(projectGroup);
+    });
+
+    container.appendChild(subGroup);
+  });
 }
 
+function renderWorkerBlock(parts) {
+  const first = parts[0];
+  const worker = document.createElement('div');
+  worker.className = 'worker';
+
+  const workerKey =
+    [first.subcontractor, first.project, first.email, first.entry, first.exit].join('|');
+
+  if (collapsedWorkers.has(workerKey)) {
+    worker.classList.add('collapsed');
+  }
+
+  const pendingRows = parts
+    .filter(p => p.status === 'PENDIENTE')
+    .map(p => p.rowNumber);
+
+  const head = document.createElement('div');
+  head.className = 'worker-head';
+
+  const info = document.createElement('div');
+  info.innerHTML = `
+    <div class="worker-name">${escapeHtml(first.worker || first.email)}</div>
+    <div class="worker-time">
+      ${escapeHtml(first.entryTime || '--:--')} → ${escapeHtml(first.exitTime || '--:--')}
+      · ${escapeHtml(getHoursDisplay(first))} h
+    </div>
+  `;
+  head.appendChild(info);
+
+  const headActions = document.createElement('div');
+  headActions.className = 'worker-head-actions';
+
+  if (pendingRows.length) {
+    const bulk = document.createElement('button');
+    bulk.type = 'button';
+    bulk.className = 'bulk-btn';
+    bulk.textContent = 'VALIDAR PENDIENTES';
+    bulk.addEventListener('click', event => {
+      event.stopPropagation();
+      bulkValidate(pendingRows);
+    });
+    headActions.appendChild(bulk);
+  }
+
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'worker-toggle';
+  toggle.textContent = '⌄';
+  toggle.setAttribute('aria-label', 'Plegar o desplegar trabajador');
+
+  toggle.addEventListener('click', event => {
+    event.stopPropagation();
+
+    if (worker.classList.toggle('collapsed')) {
+      collapsedWorkers.add(workerKey);
+    } else {
+      collapsedWorkers.delete(workerKey);
+    }
+  });
+
+  headActions.appendChild(toggle);
+  head.appendChild(headActions);
+
+  const body = document.createElement('div');
+  body.className = 'worker-body';
+
+  parts.forEach(part => {
+    body.appendChild(renderTask(part));
+  });
+
+  worker.appendChild(head);
+  worker.appendChild(body);
+
+  return worker;
+}
+
+function getHoursDisplay(part) {
+  const raw = String(part.hours || '').trim();
+
+  // Si ya viene como una duración limpia, la usamos.
+  if (/^\d+:\d{2}$/.test(raw)) return raw;
+
+  // Si Sheets devolvió una duración como fecha 1899,
+  // calculamos la duración directamente con ENTRADA y SALIDA.
+  const entry = parseFrontDateTime(part.entry);
+  const exit = parseFrontDateTime(part.exit);
+
+  if (entry && exit && exit >= entry) {
+    const totalMinutes = Math.max(
+      0,
+      Math.round((exit.getTime() - entry.getTime()) / 60000)
+    );
+
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    return hours + ':' + String(minutes).padStart(2, '0');
+  }
+
+  return raw && !raw.includes('1899') ? raw : '--:--';
+}
+
+function parseFrontDateTime(value) {
+  const text = String(value || '').trim();
+  const match = text.match(
+    /^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/
+  );
+
+  if (!match) return null;
+
+  return new Date(
+    Number(match[3]),
+    Number(match[2]) - 1,
+    Number(match[1]),
+    Number(match[4]),
+    Number(match[5]),
+    Number(match[6])
+  );
+}
+
+function renderTask(part) {
+  const el = document.createElement('div');
+  el.className = 'task';
+  el.dataset.row = part.rowNumber;
+
+  const existingObs = part.observation
+    ? `<div class="obs-existing"><strong>Observación:</strong> ${escapeHtml(part.observation)}</div>`
+    : '';
+
+  el.innerHTML = `
+    <div class="task-top">
+      <div>
+        <div class="task-title">${escapeHtml(part.task || 'Sin tarea')}</div>
+        ${part.zone ? `<div class="task-zone">Zona: ${escapeHtml(part.zone)}</div>` : ''}
+        ${part.description ? `<div class="task-desc">${escapeHtml(part.description)}</div>` : ''}
+      </div>
+      <span class="status-pill status-${part.status}">${escapeHtml(part.status)}</span>
+    </div>
+
+    ${existingObs}
+
+    <div class="actions">
+      <button type="button" class="action-btn action-valid" data-action="VALIDADO">VALIDAR</button>
+      <button type="button" class="action-btn action-review" data-action="REVISAR">REVISAR</button>
+      <button type="button" class="action-btn action-reject" data-action="RECHAZADO">RECHAZAR</button>
+    </div>
+
+    <div class="editor">
+      <label>Observación</label>
+      <textarea maxlength="500" placeholder="Indica el motivo o comentario…"></textarea>
+      <div class="editor-actions">
+        <button type="button" class="cancel-edit">CANCELAR</button>
+        <button type="button" class="save-edit">GUARDAR</button>
+      </div>
+    </div>
+  `;
+
+  el.querySelector('[data-action="VALIDADO"]').addEventListener('click', () => {
+    updateTask(part.rowNumber, 'VALIDADO', '');
+  });
+
+  el.querySelector('[data-action="REVISAR"]').addEventListener('click', () => {
+    openEditor(el, part, 'REVISAR');
+  });
+
+  el.querySelector('[data-action="RECHAZADO"]').addEventListener('click', () => {
+    openEditor(el, part, 'RECHAZADO');
+  });
+
+  el.querySelector('.cancel-edit').addEventListener('click', () => {
+    el.querySelector('.editor').classList.remove('open');
+  });
+
+  return el;
+}
+
+function openEditor(el, part, status) {
+  const editor = el.querySelector('.editor');
+  const textarea = editor.querySelector('textarea');
+  const save = editor.querySelector('.save-edit');
+
+  textarea.value = part.observation || '';
+  editor.classList.add('open');
+  textarea.focus();
+
+  save.onclick = () => {
+    const observation = textarea.value.trim();
+
+    if (!observation) {
+      showStatus('Debes indicar una observación para ' + status + '.', 'err');
+      return;
+    }
+
+    updateTask(part.rowNumber, status, observation);
+  };
+}
+
+function updateTask(rowNumber, status, observation) {
+
+  const part = currentParts.find(
+    p => Number(p.rowNumber) === Number(rowNumber)
+  );
+
+  if (!part || part._saving) return;
+
+  // Actualización optimista:
+  // el usuario ve el cambio de forma inmediata, sin esperar a Sheets.
+  part.status = status;
+  part.observation = observation || '';
+  part.validatedBy =
+    status === 'PENDIENTE'
+      ? ''
+      : (manager && manager.email ? manager.email : '');
+  part._saving = true;
+
+  updateSummary();
+  renderParts();
+
+  showStatus('Guardando cambio…', 'info');
+
+  postToBackend({
+    action:'adminUpdate',
+    credential:googleCredential,
+    rowNumber:rowNumber,
+    status:status,
+    observation:observation
+  });
+}
+
+function bulkValidate(rows) {
+  if (!rows.length) return;
+
+  if (!confirm('¿Validar todas las tareas pendientes de este bloque?')) return;
+
+  const rowSet = new Set(rows.map(Number));
+
+  currentParts.forEach(part => {
+    if (
+      rowSet.has(Number(part.rowNumber)) &&
+      part.status === 'PENDIENTE'
+    ) {
+      part.status = 'VALIDADO';
+      part.validatedBy =
+        manager && manager.email ? manager.email : '';
+      part.observation = '';
+      part._saving = true;
+    }
+  });
+
+  // Desaparecen al instante si el filtro activo es PENDIENTES.
+  updateSummary();
+  renderParts();
+
+  showStatus('Guardando validaciones…', 'info');
+
+  postToBackend({
+    action:'adminBulkValidate',
+    credential:googleCredential,
+    rowNumbersJson:JSON.stringify(rows)
+  });
+}
+
+
+
+function loadPresence() {
+  if (!googleCredential) return;
+  const btn = document.getElementById('presenceRefresh');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'ACTUALIZANDO…';
+  }
+  const updated = document.getElementById('presenceUpdated');
+  if (updated) updated.textContent = 'Consultando fichajes abiertos…';
+
+  postToBackend({
+    action:'adminPresence',
+    credential:googleCredential
+  }, 'adminPresence');
+}
+
+function renderPresence() {
+  const rows = Array.isArray(currentPresence) ? currentPresence : [];
+  const container = document.getElementById('presenceProjects');
+  if (!container) return;
+
+  const uniqueSubs = new Set(rows.map(r => String(r.subcontractor || '').trim()).filter(Boolean));
+  const uniqueProjects = new Set(rows.map(r => String(r.project || '').trim()).filter(Boolean));
+  document.getElementById('presencePeopleCount').textContent = rows.length;
+  document.getElementById('presenceSubCount').textContent = uniqueSubs.size;
+  document.getElementById('presenceProjectCount').textContent = uniqueProjects.size;
+
+  const btn = document.getElementById('presenceRefresh');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'ACTUALIZAR';
+  }
+
+  if (!rows.length) {
+    container.innerHTML = '<div class="presence-empty">No hay fichajes de entrada abiertos en este momento.</div>';
+    return;
+  }
+
+  const byProject = groupBy(rows, r => r.project || 'SIN PROYECTO');
+  const projectNames = Object.keys(byProject).sort(localeSort);
+
+  container.innerHTML = projectNames.map(project => {
+    const projectRows = byProject[project];
+    const bySub = groupBy(projectRows, r => r.subcontractor || 'SIN SUBCONTRATA');
+    const subNames = Object.keys(bySub).sort(localeSort);
+
+    const subHtml = subNames.map((sub, idx) => {
+      const workers = bySub[sub].slice().sort((a,b) => localeSort(a.worker, b.worker));
+      const key = escapeHtml(project + '__' + sub + '__' + idx);
+      return '<div class="presence-sub-row" data-presence-key="' + key + '">' +
+        '<button type="button" class="presence-sub-head" data-presence-toggle="' + key + '">' +
+          '<span class="presence-sub-name">' + escapeHtml(sub) + '</span>' +
+          '<span class="presence-sub-count">' + workers.length + ' persona' + (workers.length === 1 ? '' : 's') + ' · ver detalle ▾</span>' +
+        '</button>' +
+        '<div class="presence-workers">' +
+          workers.map(w =>
+            '<div class="presence-worker">' +
+              '<div><div class="presence-worker-name">' + escapeHtml(w.worker || w.email || 'Trabajador') + '</div>' +
+              '<div class="presence-worker-meta">' + escapeHtml(project) + ' · ' + escapeHtml(w.subcontractor || '') + '</div></div>' +
+              '<div class="presence-entry">Desde ' + escapeHtml(w.entryTime || '') + '</div>' +
+            '</div>'
+          ).join('') +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    return '<div class="presence-project">' +
+      '<div class="presence-project-head"><span class="presence-project-name">' + escapeHtml(project) + '</span>' +
+      '<span class="presence-project-count">' + projectRows.length + ' presente' + (projectRows.length === 1 ? '' : 's') + '</span></div>' +
+      subHtml +
+    '</div>';
+  }).join('');
+}
+
+function handlePresenceClick(event) {
+  const btn = event.target.closest('[data-presence-toggle]');
+  if (!btn) return;
+  const key = btn.getAttribute('data-presence-toggle');
+  const row = [...document.querySelectorAll('.presence-sub-row')].find(el => el.getAttribute('data-presence-key') === key);
+  if (row) row.classList.toggle('open');
+}
+
+function switchModule(moduleName) {
+  const isEquipment = moduleName === 'equipment';
+
+  document.getElementById('workTab').classList.toggle('active', !isEquipment);
+  document.getElementById('equipmentTab').classList.toggle('active', isEquipment);
+  document.getElementById('workModule').classList.toggle('active', !isEquipment);
+  document.getElementById('equipmentModule').classList.toggle('active', isEquipment);
+  document.getElementById('mainWrap').classList.toggle('equipment-wide', isEquipment);
+
+  if (isEquipment && !equipmentLoaded) {
+    loadEquipmentLocations();
+  }
+  if (!isEquipment && !presenceLoaded) {
+    loadPresence();
+  }
+}
+
+function loadEquipmentLocations() {
+  if (!googleCredential) return;
+
+  const btn = document.getElementById('equipmentRefresh');
+  btn.disabled = true;
+  btn.textContent = 'ACTUALIZANDO…';
+  document.getElementById('equipmentUpdated').textContent = 'Consultando posiciones…';
+
+  postToBackend({
+    action:'equipmentLocations',
+    credential:googleCredential
+  }, 'equipmentLocations');
+
+  // The response handler restores the visual state. This timeout is only a
+  // safety valve in case the external request is interrupted.
+  window.setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = 'ACTUALIZAR POSICIONES';
+  }, 8000);
+}
+
+function equipmentWorldToPixel(easting, northing) {
+  // First use the local calibrated triangle. This exactly honours the control
+  // points and avoids the several-metre drift seen with one global transform.
+  for (const tri of EQUIPMENT_TRIANGLES) {
+    const a = EQUIPMENT_CONTROL_POINTS[tri[0]];
+    const b = EQUIPMENT_CONTROL_POINTS[tri[1]];
+    const c = EQUIPMENT_CONTROL_POINTS[tri[2]];
+    const weights = equipmentBarycentric(easting, northing, a, b, c);
+    if (!weights) continue;
+    const eps = -1e-8;
+    if (weights.u >= eps && weights.v >= eps && weights.w >= eps) {
+      return {
+        x:weights.u*a.x + weights.v*b.x + weights.w*c.x,
+        y:weights.u*a.y + weights.v*b.y + weights.w*c.y,
+        method:'LOCAL'
+      };
+    }
+  }
+
+  // Outside the calibrated hull: robust global affine fallback.
+  const g = EQUIPMENT_GEOREF;
+  const dE = easting - g.originE;
+  const dN = northing - g.originN;
+  return {
+    x:g.px.a * dE + g.px.b * dN + g.px.c,
+    y:g.py.a * dE + g.py.b * dN + g.py.c,
+    method:'GLOBAL'
+  };
+}
+
+function equipmentBarycentric(e, n, a, b, c) {
+  const den = (b.n - c.n)*(a.e - c.e) + (c.e - b.e)*(a.n - c.n);
+  if (Math.abs(den) < 1e-9) return null;
+  const u = ((b.n - c.n)*(e - c.e) + (c.e - b.e)*(n - c.n)) / den;
+  const v = ((c.n - a.n)*(e - c.e) + (a.e - c.e)*(n - c.n)) / den;
+  const w = 1 - u - v;
+  return {u,v,w};
+}
+
+function equipmentWorldToPercent(easting, northing) {
+  const g = EQUIPMENT_GEOREF;
+  const p = equipmentWorldToPixel(easting, northing);
+  return {
+    x:(p.x / g.imageWidth) * 100,
+    y:(p.y / g.imageHeight) * 100,
+    inside:p.x >= 0 && p.x <= g.imageWidth && p.y >= 0 && p.y <= g.imageHeight,
+    method:p.method
+  };
+}
+
+function equipmentAgeMinutes(item) {
+  const epoch = Number(item.lastPositionEpoch);
+  if (!Number.isFinite(epoch) || epoch <= 0) return null;
+  return Math.max(0, Math.floor((Date.now() - epoch) / 60000));
+}
+
+function equipmentFreshness(item) {
+  const age = equipmentAgeMinutes(item);
+  if (age == null) return 'unknown';
+  if (age < 10) return 'fresh';
+  if (age <= 30) return 'warn';
+  return 'stale';
+}
+
+function equipmentAgeLabel(item) {
+  const age = equipmentAgeMinutes(item);
+  if (age == null) return 'Sin posición';
+  if (age < 1) return 'Ahora';
+  if (age < 60) return 'Hace ' + age + ' min';
+  const hours = Math.floor(age / 60);
+  return 'Hace ' + hours + ' h';
+}
+
+function equipmentIcon(type) {
+  const t = normalizeFrontText(type);
+  if (t.includes('GRUA')) return '🏗';
+  if (t.includes('PEMP') || t.includes('PLATAFORMA')) return '↕';
+  if (t.includes('MANITOU') || t.includes('TELEHANDLER')) return 'M';
+  return '•';
+}
+
+function populateEquipmentFilters() {
+  const projectEl = document.getElementById('equipmentProjectFilter');
+  const typeEl = document.getElementById('equipmentTypeFilter');
+  const oldProject = projectEl.value;
+  const oldType = typeEl.value;
+
+  const projects = uniqueSorted(currentEquipment.map(x => x.project));
+  const types = uniqueSorted(currentEquipment.map(x => x.type));
+
+  projectEl.innerHTML = '<option value="">Todos los proyectos</option>' +
+    projects.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  typeEl.innerHTML = '<option value="">Todos los tipos</option>' +
+    types.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+
+  if (projects.includes(oldProject)) projectEl.value = oldProject;
+  if (types.includes(oldType)) typeEl.value = oldType;
+}
+
+function renderEquipmentModule() {
+  const project = document.getElementById('equipmentProjectFilter').value;
+  const type = document.getElementById('equipmentTypeFilter').value;
+  const visible = currentEquipment.filter(item =>
+    (!project || item.project === project) &&
+    (!type || item.type === type)
+  );
+
+  const layer = document.getElementById('equipmentMarkerLayer');
+  const list = document.getElementById('equipmentList');
+  layer.innerHTML = '';
+  list.innerHTML = '';
+
+  let fresh = 0;
+  let warnings = 0;
+
+  visible.forEach(item => {
+    const cls = equipmentFreshness(item);
+    if (cls === 'fresh') fresh++;
+    if (cls === 'stale' || cls === 'unknown') warnings++;
+
+    const e = Number(item.easting);
+    const n = Number(item.northing);
+
+    if (Number.isFinite(e) && Number.isFinite(n)) {
+      const pos = equipmentWorldToPercent(e, n);
+      if (pos.inside) {
+        const marker = document.createElement('div');
+        marker.className = 'equipment-marker ' + cls + (selectedEquipmentId === item.equipmentId ? ' selected' : '');
+        marker.style.left = pos.x + '%';
+        marker.style.top = pos.y + '%';
+        marker.title = (item.name || item.equipmentId || 'Equipo') + ' · ' + equipmentAgeLabel(item);
+        marker.innerHTML =
+          '<div class="equipment-marker-dot"><span>' + escapeHtml(equipmentIcon(item.type)) + '</span></div>' +
+          '<div class="equipment-marker-label">' + escapeHtml(item.name || item.equipmentId || 'Equipo') + '</div>';
+        marker.addEventListener('click', () => selectEquipmentItem(item.equipmentId));
+        layer.appendChild(marker);
+      }
+    }
+
+    const row = document.createElement('div');
+    row.className = 'equipment-row' + (selectedEquipmentId === item.equipmentId ? ' selected' : '');
+    row.innerHTML =
+      '<div>' +
+        '<div class="equipment-row-name">' + escapeHtml(item.name || item.equipmentId || 'Equipo sin nombre') + '</div>' +
+        '<div class="equipment-row-meta">' +
+          escapeHtml([item.type, item.project, item.supplier, item.trackerId].filter(Boolean).join(' · ')) +
+        '</div>' +
+      '</div>' +
+      '<div class="equipment-freshness ' + cls + '">' + escapeHtml(equipmentAgeLabel(item)) + '</div>';
+    row.addEventListener('click', () => selectEquipmentItem(item.equipmentId));
+    list.appendChild(row);
+  });
+
+  document.getElementById('equipmentCount').textContent = visible.length;
+  document.getElementById('equipmentFreshCount').textContent = fresh;
+  document.getElementById('equipmentWarningCount').textContent = warnings;
+
+  const btn = document.getElementById('equipmentRefresh');
+  btn.disabled = false;
+  btn.textContent = 'ACTUALIZAR POSICIONES';
+
+  if (!visible.length) {
+    list.innerHTML = '<div class="equipment-empty">No hay equipos activos con los filtros actuales o el módulo todavía no tiene datos.</div>';
+  }
+}
+
+
+function renderEquipmentSiteLabels() {
+  const layer = document.getElementById('equipmentSiteLayer');
+  if (!layer) return;
+  layer.innerHTML = '';
+  EQUIPMENT_SITE_LABELS.forEach(site => {
+    const el = document.createElement('div');
+    el.className = 'equipment-site-label';
+    el.style.left = site.x + '%';
+    el.style.top = site.y + '%';
+    el.textContent = site.name;
+    layer.appendChild(el);
+  });
+}
+
+function toggleEquipmentCleanMap() {
+  equipmentCleanBase = !equipmentCleanBase;
+  const img = document.getElementById('equipmentCampusMap');
+  const btn = document.getElementById('equipmentCleanMap');
+  img.src = equipmentCleanBase ? './campus-location-map-clean.png' : './campus-location-map.png';
+  img.classList.toggle('clean-base', equipmentCleanBase);
+  btn.classList.toggle('active', equipmentCleanBase);
+  btn.textContent = equipmentCleanBase ? 'BASE LIMPIA' : 'PLANO ORIGINAL';
+}
+
+function toggleEquipmentFullscreen() {
+  const card = document.getElementById('equipmentMapCard');
+  if (!document.fullscreenElement) {
+    if (card.requestFullscreen) card.requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
+}
+
+function selectEquipmentItem(id) {
+  selectedEquipmentId = id;
+  renderEquipmentModule();
+  const item = currentEquipment.find(x => x.equipmentId === id);
+  renderEquipmentDetail(item);
+}
+
+function renderEquipmentDetail(item) {
+  const pop = document.getElementById('equipmentDetailPop');
+  if (!pop) return;
+  if (!item) { pop.classList.remove('open'); pop.innerHTML=''; return; }
+  const cls = equipmentFreshness(item);
+  const e = Number(item.easting), n = Number(item.northing);
+  const method = Number.isFinite(e) && Number.isFinite(n) ? equipmentWorldToPercent(e,n).method : '';
+  pop.innerHTML =
+    '<div class="equipment-detail-head">' +
+      '<div><div class="equipment-detail-name">' + escapeHtml(item.name || item.equipmentId || 'Equipo') + '</div>' +
+      '<div class="equipment-row-meta">' + escapeHtml(item.type || '') + '</div></div>' +
+      '<button type="button" class="equipment-detail-close" id="equipmentDetailClose">×</button>' +
+    '</div>' +
+    '<dl class="equipment-detail-grid">' +
+      '<dt>Proyecto</dt><dd>' + escapeHtml(item.project || '—') + '</dd>' +
+      '<dt>Proveedor</dt><dd>' + escapeHtml(item.supplier || '—') + '</dd>' +
+      '<dt>Tracker</dt><dd>' + escapeHtml(item.trackerId || '—') + '</dd>' +
+      '<dt>Batería</dt><dd>' + escapeHtml(item.battery == null || item.battery === '' ? '—' : item.battery + '%') + '</dd>' +
+      '<dt>Posición</dt><dd class="equipment-freshness ' + cls + '">' + escapeHtml(equipmentAgeLabel(item)) + '</dd>' +
+      '<dt>Este</dt><dd>' + (Number.isFinite(e) ? e.toFixed(3) + ' m' : '—') + '</dd>' +
+      '<dt>Norte</dt><dd>' + (Number.isFinite(n) ? n.toFixed(3) + ' m' : '—') + '</dd>' +
+    '</dl>' +
+    '<div class="equipment-calibration-note">Georreferencia: ' + escapeHtml(method === 'LOCAL' ? 'ajuste local calibrado' : 'ajuste global') + '</div>';
+  pop.classList.add('open');
+}
+
+function closeEquipmentDetail() {
+  selectedEquipmentId = null;
+  const pop = document.getElementById('equipmentDetailPop');
+  if (pop) { pop.classList.remove('open'); pop.innerHTML=''; }
+  renderEquipmentModule();
+}
+
+
+let selectedEquipmentId = null;
+let equipmentCleanBase = true;
+
+function normalizeFrontText(v){return String(v||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');}
+function equipmentWorldToPixel(easting,northing){for(const tri of EQUIPMENT_TRIANGLES){const a=EQUIPMENT_CONTROL_POINTS[tri[0]],b=EQUIPMENT_CONTROL_POINTS[tri[1]],c=EQUIPMENT_CONTROL_POINTS[tri[2]],weights=equipmentBarycentric(easting,northing,a,b,c);if(!weights)continue;const eps=-1e-8;if(weights.u>=eps&&weights.v>=eps&&weights.w>=eps)return{x:weights.u*a.x+weights.v*b.x+weights.w*c.x,y:weights.u*a.y+weights.v*b.y+weights.w*c.y,method:'LOCAL'};}const g=EQUIPMENT_GEOREF,dE=easting-g.originE,dN=northing-g.originN;return{x:g.px.a*dE+g.px.b*dN+g.px.c,y:g.py.a*dE+g.py.b*dN+g.py.c,method:'GLOBAL'};}
+function equipmentBarycentric(e,n,a,b,c){const den=(b.n-c.n)*(a.e-c.e)+(c.e-b.e)*(a.n-c.n);if(Math.abs(den)<1e-9)return null;const u=((b.n-c.n)*(e-c.e)+(c.e-b.e)*(n-c.n))/den,v=((c.n-a.n)*(e-c.e)+(a.e-c.e)*(n-c.n))/den;return{u,v,w:1-u-v};}
+function equipmentWorldToPercent(e,n){const g=EQUIPMENT_GEOREF,p=equipmentWorldToPixel(e,n);return{x:p.x/g.imageWidth*100,y:p.y/g.imageHeight*100,inside:p.x>=0&&p.x<=g.imageWidth&&p.y>=0&&p.y<=g.imageHeight,method:p.method};}
+function equipmentAgeMinutes(item){const epoch=Number(item.lastPositionEpoch);if(!Number.isFinite(epoch)||epoch<=0)return null;return Math.max(0,Math.floor((Date.now()-epoch)/60000));}
+function equipmentFreshness(item){const age=equipmentAgeMinutes(item);if(age==null)return'unknown';if(age<10)return'fresh';if(age<=30)return'warn';return'stale';}
+function equipmentAgeLabel(item){const age=equipmentAgeMinutes(item);if(age==null)return'Sin posición';if(age<1)return'Ahora';if(age<60)return'Hace '+age+' min';return'Hace '+Math.floor(age/60)+' h';}
+function equipmentIcon(type){const t=normalizeFrontText(type);if(t.includes('GRUA'))return'🏗';if(t.includes('PEMP')||t.includes('PLATAFORMA'))return'↕';if(t.includes('MANITOU')||t.includes('TELEHANDLER'))return'M';return'•';}
+
+function openEquipmentGlobal(){show(el.equipmentGlobalView);renderEquipmentSiteLabels();setStatus(el.equipmentGlobalStatus,'Cargando maquinaria…');postToBackend('equipmentLocationsGlobal',{});}
+function handleEquipmentLocationsGlobal(payload){if(!payload?.ok){setStatus(el.equipmentGlobalStatus,payload?.message||'No se ha podido cargar maquinaria.','error');return;}state.equipmentGlobal=Array.isArray(payload.locations)?payload.locations:[];if(payload.configured===false)setStatus(el.equipmentGlobalStatus,payload.message||'Módulo de maquinaria pendiente de configurar.','info');else clearStatus(el.equipmentGlobalStatus);populateEquipmentFilters();renderEquipmentGlobal();}
+function populateEquipmentFilters(){const projectEl=el.equipmentGlobalProjectFilter,typeEl=el.equipmentTypeFilter,oldProject=projectEl.value,oldType=typeEl.value;const projects=[...new Set(state.equipmentGlobal.map(x=>x.project).filter(Boolean))].sort(),types=[...new Set(state.equipmentGlobal.map(x=>x.type).filter(Boolean))].sort();projectEl.innerHTML='<option value="">Todos los proyectos</option>'+projects.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');typeEl.innerHTML='<option value="">Todos los tipos</option>'+types.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');if(projects.includes(oldProject))projectEl.value=oldProject;if(types.includes(oldType))typeEl.value=oldType;}
+function renderEquipmentGlobal(){
+  const project=el.equipmentGlobalProjectFilter.value,type=el.equipmentTypeFilter.value,q=el.equipmentGlobalSearch.value.trim().toLowerCase();
+  const visible=(state.equipmentGlobal||[]).filter(item=>(!project||item.project===project)&&(!type||item.type===type)&&(!q||[item.name,item.equipmentId,item.type,item.supplier,item.project,item.trackerId].join(' ').toLowerCase().includes(q)));
+  el.equipmentMarkerLayer.innerHTML='';el.equipmentGlobalList.innerHTML='';let fresh=0,warnings=0;
+  visible.forEach(item=>{const cls=equipmentFreshness(item);if(cls==='fresh')fresh++;if(cls==='stale'||cls==='unknown')warnings++;const e=Number(item.easting),n=Number(item.northing);if(Number.isFinite(e)&&Number.isFinite(n)){const pos=equipmentWorldToPercent(e,n);if(pos.inside){const marker=document.createElement('div');marker.className='equipment-marker '+cls+(selectedEquipmentId===item.equipmentId?' selected':'');marker.style.left=pos.x+'%';marker.style.top=pos.y+'%';marker.title=(item.name||item.equipmentId||'Equipo')+' · '+equipmentAgeLabel(item);marker.innerHTML='<div class="equipment-marker-dot"><span>'+esc(equipmentIcon(item.type))+'</span></div><div class="equipment-marker-label">'+esc(item.name||item.equipmentId||'Equipo')+'</div>';marker.addEventListener('click',()=>selectEquipmentItem(item.equipmentId));el.equipmentMarkerLayer.appendChild(marker);}}
+    const row=document.createElement('div');row.className='equipment-row'+(selectedEquipmentId===item.equipmentId?' selected':'');row.innerHTML='<div><div class="equipment-row-name">'+esc(item.name||item.equipmentId||'Equipo sin nombre')+'</div><div class="equipment-row-meta">'+esc([item.type,item.project,item.supplier,item.trackerId].filter(Boolean).join(' · '))+'</div></div><div class="equipment-freshness '+cls+'">'+esc(equipmentAgeLabel(item))+'</div>';row.addEventListener('click',()=>selectEquipmentItem(item.equipmentId));el.equipmentGlobalList.appendChild(row);
+  });
+  el.equipmentGlobalCount.textContent=visible.length;el.equipmentPositionCount.textContent=fresh;el.equipmentNoPositionCount.textContent=warnings;el.equipmentUpdated.textContent='Actualizado '+new Intl.DateTimeFormat('es-ES',{hour:'2-digit',minute:'2-digit'}).format(new Date());
+  if(!visible.length)el.equipmentGlobalList.innerHTML='<div class="equipment-empty">No hay equipos activos con los filtros actuales o el módulo todavía no tiene datos.</div>';
+}
+function renderEquipmentSiteLabels(){if(!el.equipmentSiteLayer)return;el.equipmentSiteLayer.innerHTML='';EQUIPMENT_SITE_LABELS.forEach(site=>{const x=document.createElement('div');x.className='equipment-site-label';x.style.left=site.x+'%';x.style.top=site.y+'%';x.textContent=site.name;el.equipmentSiteLayer.appendChild(x);});}
+function selectEquipmentItem(id){selectedEquipmentId=id;renderEquipmentGlobal();const item=(state.equipmentGlobal||[]).find(x=>x.equipmentId===id);if(!item){el.equipmentDetailPop.innerHTML='';el.equipmentDetailPop.classList.remove('show');return;}el.equipmentDetailPop.innerHTML=`<button type="button" class="equipment-detail-close">×</button><strong>${esc(item.name||item.equipmentId)}</strong><span>${esc([item.type,item.project,item.supplier].filter(Boolean).join(' · '))}</span><dl><dt>Tracker</dt><dd>${esc(item.trackerId||'—')}</dd><dt>Batería</dt><dd>${item.battery==null?'—':esc(item.battery)+'%'}</dd><dt>Posición</dt><dd>${item.easting==null||item.northing==null?'Sin posición':esc(item.easting)+' / '+esc(item.northing)}</dd><dt>Última posición</dt><dd>${esc(item.lastPosition||'—')}</dd><dt>Comunicación</dt><dd>${esc(item.lastCommunication||'—')}</dd></dl>`;el.equipmentDetailPop.classList.add('show');el.equipmentDetailPop.querySelector('.equipment-detail-close').addEventListener('click',()=>{selectedEquipmentId=null;el.equipmentDetailPop.classList.remove('show');renderEquipmentGlobal();});}
+function toggleEquipmentCleanMap(){equipmentCleanBase=!equipmentCleanBase;el.equipmentCampusMap.src=equipmentCleanBase?'campus-location-map-clean.png':'campus-location-map.png';el.equipmentCampusMap.classList.toggle('clean-base',equipmentCleanBase);el.equipmentCleanMap.classList.toggle('active',equipmentCleanBase);el.equipmentCleanMap.textContent=equipmentCleanBase?'BASE LIMPIA':'PLANO ORIGINAL';}
+function toggleEquipmentFullscreen(){if(!document.fullscreenElement){el.equipmentMapCard.requestFullscreen?.();}else document.exitFullscreen?.();}
 
 /* GLOBAL ADMIN */
 function openGlobalAdmin() {
@@ -3083,6 +4228,9 @@ el.backFromEquipmentGlobalBtn.addEventListener('click', () => show(el.projectVie
 el.refreshEquipmentGlobalBtn.addEventListener('click', openEquipmentGlobal);
 el.equipmentGlobalSearch.addEventListener('input', renderEquipmentGlobal);
 el.equipmentGlobalProjectFilter.addEventListener('change', renderEquipmentGlobal);
+el.equipmentTypeFilter.addEventListener('change', renderEquipmentGlobal);
+el.equipmentCleanMap.addEventListener('click', toggleEquipmentCleanMap);
+el.equipmentFullscreen.addEventListener('click', toggleEquipmentFullscreen);
 
 /* EVENTS */
 el.logoutBtn.addEventListener('click', logout);

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=0.8.0">
+  <link rel="stylesheet" href="styles.css?v=0.8.1">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -89,7 +89,7 @@
 
   
 
-<section id="workControlView" class="view hidden">
+<section id="workControlView" class="view hidden legacy-control-view">
   <div class="section-toolbar">
     <button id="backFromWorkControlBtn" class="btn btn-secondary" type="button">← Proyecto</button>
     <div>
@@ -97,69 +97,71 @@
       <h1>Control de trabajos</h1>
       <p id="workControlSubtitle" class="muted"></p>
     </div>
-    <button id="refreshWorkPresenceBtn" class="btn btn-secondary" type="button">Actualizar presencia</button>
   </div>
 
   <div id="workControlStatus" class="status hidden"></div>
 
-  <div class="work-scope-bar">
-    <label>
-      <span>Ámbito de consulta</span>
-      <select id="workProjectScope"></select>
-    </label>
-    <div id="workScopeHint" class="muted"></div>
-  </div>
-
-  <div class="work-presence-panel">
-    <div class="work-section-head">
+  <section class="presence-section">
+    <div class="presence-head">
       <div>
-        <div class="eyebrow">PRESENCIA ACTUAL</div>
-        <h2>Personal actualmente en obra</h2>
+        <div class="presence-title">Presencia ahora</div>
+        <div class="presence-subtitle" id="workPresenceUpdated">Cargando presencia actual…</div>
       </div>
-      <div id="workPresenceUpdated" class="muted"></div>
+      <button type="button" class="presence-refresh" id="refreshWorkPresenceBtn">ACTUALIZAR</button>
     </div>
-    <div id="workPresenceList" class="work-presence-list"></div>
-  </div>
+    <div class="presence-kpis">
+      <div class="presence-kpi"><span>Personas</span><strong id="workPresencePeople">0</strong></div>
+      <div class="presence-kpi"><span>Subcontratas</span><strong id="workPresenceSubs">0</strong></div>
+      <div class="presence-kpi"><span>Proyectos</span><strong id="workPresenceProjectsCount">0</strong></div>
+    </div>
+    <div class="presence-projects" id="workPresenceList">
+      <div class="presence-empty">Todavía no se ha cargado la presencia.</div>
+    </div>
+  </section>
 
-  <div class="work-calendar-layout">
-    <div class="work-calendar-card">
-      <div class="work-calendar-head">
-        <button id="workPrevMonthBtn" class="icon-btn" type="button">‹</button>
-        <strong id="workCalendarTitle"></strong>
-        <button id="workNextMonthBtn" class="icon-btn" type="button">›</button>
+  <div class="calendar-layout">
+    <div class="calendar-card">
+      <div class="calendar-head">
+        <button type="button" class="nav-btn" id="workPrevMonthBtn" aria-label="Mes anterior">‹</button>
+        <div class="calendar-title" id="workCalendarTitle"></div>
+        <button type="button" class="nav-btn" id="workNextMonthBtn" aria-label="Mes siguiente">›</button>
       </div>
-      <div class="work-weekdays">
-        <span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span>
+      <div class="weekdays">
+        <div class="weekday">L</div><div class="weekday">M</div><div class="weekday">X</div><div class="weekday">J</div><div class="weekday">V</div><div class="weekday">S</div><div class="weekday">D</div>
       </div>
-      <div id="workCalendarGrid" class="work-calendar-grid"></div>
-      <div class="work-calendar-legend">
-        <span><i class="dot parts"></i> Partes</span>
-        <span><i class="dot incidents"></i> Incidencias</span>
-      </div>
+      <div class="calendar-grid" id="workCalendarGrid"></div>
+      <div class="legend"><i></i>Punto verde: partes · Punto rojo: incidencias.</div>
     </div>
 
-    <div class="work-day-panel">
-      <div class="work-section-head">
-        <div>
-          <div class="eyebrow">REVISIÓN DIARIA</div>
-          <h2 id="workSelectedDateLabel"></h2>
+    <div class="day-panel">
+      <div class="selected-date" id="workSelectedDateLabel">Selecciona un día</div>
+      <div class="summary">
+        <div class="summary-pill" id="workWorkersSummary">0 trabajadores</div>
+        <div class="summary-pill" id="workTasksSummary">0 tareas</div>
+        <div class="summary-pill" id="workPendingSummary">0 pendientes</div>
+        <div class="summary-pill" id="workIncidentsSummary">0 incidencias</div>
+      </div>
+
+      <div class="incidents-section">
+        <div class="incidents-head">
+          <div class="incidents-title">INCIDENCIAS DEL DÍA</div>
+          <div class="incidents-count" id="workIncidentPendingCount">0</div>
         </div>
+        <div id="workIncidentsContainer" class="incidents-empty">No hay incidencias para este día.</div>
       </div>
 
-      <div class="work-summary">
-        <div><span>TRABAJADORES</span><strong id="workWorkersSummary">0</strong></div>
-        <div><span>TAREAS</span><strong id="workTasksSummary">0</strong></div>
-        <div><span>PENDIENTES</span><strong id="workPendingSummary">0</strong></div>
-        <div><span>INCIDENCIAS</span><strong id="workIncidentsSummary">0</strong></div>
-      </div>
-
-      <div class="work-filters">
-        <label>
-          <span>Subcontrata</span>
+      <div class="filters">
+        <div>
+          <label for="workProjectScope">Proyecto</label>
+          <select id="workProjectScope"></select>
+          <div id="workScopeHint" class="scope-hint"></div>
+        </div>
+        <div>
+          <label for="workSubcontractorFilter">Subcontrata</label>
           <select id="workSubcontractorFilter"><option value="">Todas</option></select>
-        </label>
-        <label>
-          <span>Estado</span>
+        </div>
+        <div>
+          <label for="workStateFilter">Estado</label>
           <select id="workStateFilter">
             <option value="PENDIENTE">Pendientes</option>
             <option value="">Todos</option>
@@ -167,24 +169,15 @@
             <option value="REVISAR">Revisar</option>
             <option value="RECHAZADO">Rechazados</option>
           </select>
-        </label>
-      </div>
-
-      <div class="work-incidents-block">
-        <div class="work-section-head compact">
-          <div class="eyebrow">INCIDENCIAS DEL DÍA</div>
-          <span id="workIncidentPendingCount" class="count-pill">0</span>
         </div>
-        <div id="workIncidentsContainer"></div>
       </div>
 
-      <div id="workPartsContainer"></div>
+      <div id="workPartsContainer" class="empty-state">Selecciona un día del calendario.</div>
     </div>
   </div>
 </section>
 
-
-<section id="equipmentGlobalView" class="view hidden">
+<section id="equipmentGlobalView" class="view hidden legacy-equipment-view">
   <div class="section-toolbar">
     <button id="backFromEquipmentGlobalBtn" class="btn btn-secondary" type="button">← Proyecto</button>
     <div>
@@ -192,36 +185,53 @@
       <h1>Localización de maquinaria</h1>
       <p class="muted">Vista global de maquinaria, independientemente del proyecto desde el que accedas.</p>
     </div>
-    <button id="refreshEquipmentGlobalBtn" class="btn btn-secondary" type="button">Actualizar posiciones</button>
   </div>
 
   <div id="equipmentGlobalStatus" class="status hidden"></div>
 
-  <div class="equipment-global-summary">
-    <div><span>ACTIVOS</span><strong id="equipmentGlobalCount">0</strong></div>
-    <div><span>CON POSICIÓN</span><strong id="equipmentPositionCount">0</strong></div>
-    <div><span>SIN POSICIÓN</span><strong id="equipmentNoPositionCount">0</strong></div>
+  <div class="equipment-toolbar">
+    <div>
+      <div class="equipment-title">Localización de maquinaria</div>
+      <div class="equipment-subtitle" id="equipmentUpdated">Todavía no se han cargado posiciones.</div>
+    </div>
+    <button type="button" class="equipment-refresh" id="refreshEquipmentGlobalBtn">ACTUALIZAR POSICIONES</button>
   </div>
 
-  <div class="equipment-global-toolbar">
-    <label>
-      <span>Buscar</span>
-      <input id="equipmentGlobalSearch" type="search" placeholder="Equipo, tipo, proveedor, proyecto…">
-    </label>
-    <label>
-      <span>Proyecto declarado</span>
-      <select id="equipmentGlobalProjectFilter"><option value="">Todos</option></select>
-    </label>
+  <div class="equipment-summary">
+    <div class="equipment-kpi"><span>Activos</span><strong id="equipmentGlobalCount">0</strong></div>
+    <div class="equipment-kpi"><span>Recientes</span><strong id="equipmentPositionCount">0</strong></div>
+    <div class="equipment-kpi"><span>Avisos</span><strong id="equipmentNoPositionCount">0</strong></div>
   </div>
 
-  <div class="equipment-global-grid">
-    <div class="equipment-map-shell">
-      <img src="campus-location-map-clean.png" alt="Campus" class="equipment-campus-image">
-      <div class="equipment-map-note">
-        La posición E/N se muestra en el listado. La representación exacta sobre plano seguirá usando la calibración del módulo de tracking.
+  <div class="equipment-map-card" id="equipmentMapCard">
+    <div class="equipment-map-head">
+      <div class="equipment-map-head-left">
+        <span class="equipment-map-head-title">Plano operativo del campus</span>
+        <span class="equipment-map-head-sub">Base calibrada · edificios y viales de referencia</span>
+      </div>
+      <div class="equipment-map-actions">
+        <span>🟢 &lt;10 min · 🟠 10–30 min · 🔴 &gt;30 min</span>
+        <button type="button" class="equipment-map-action active" id="equipmentCleanMap">BASE LIMPIA</button>
+        <button type="button" class="equipment-map-action" id="equipmentFullscreen">AMPLIAR</button>
       </div>
     </div>
-    <div id="equipmentGlobalList" class="equipment-global-list"></div>
+    <div class="equipment-map-viewport" id="equipmentMapViewport">
+      <div class="equipment-map-stage" id="equipmentMapStage">
+        <img src="campus-location-map-clean.png" id="equipmentCampusMap" class="equipment-campus-map clean-base" alt="Plano general del campus">
+        <div class="equipment-site-layer" id="equipmentSiteLayer"></div>
+        <div class="equipment-marker-layer" id="equipmentMarkerLayer"></div>
+        <div class="equipment-detail-pop" id="equipmentDetailPop"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="equipment-filter-row">
+    <select id="equipmentGlobalProjectFilter"><option value="">Todos los proyectos</option></select>
+    <select id="equipmentTypeFilter"><option value="">Todos los tipos</option></select>
+    <input id="equipmentGlobalSearch" type="search" placeholder="Buscar equipo…">
+  </div>
+  <div id="equipmentGlobalList" class="equipment-list">
+    <div class="equipment-empty">Pulsa actualizar para cargar las posiciones.</div>
   </div>
 </section>
 
@@ -896,6 +906,6 @@ window.LEVITEC_CONFIG = {
 };
 </script>
 
-<script src="app.js?v=0.8.0"></script>
+<script src="app.js?v=0.8.1"></script>
 </body>
 </html>
