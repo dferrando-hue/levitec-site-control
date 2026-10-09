@@ -48,7 +48,16 @@ const state = {
     correctionIncident: null
   },
 
-  equipmentGlobal: []
+  equipmentGlobal: [],
+
+  mechanical: {
+    packages: [],
+    milestones: [],
+    links: [],
+    canEdit: false,
+    selectedPackage: null,
+    selectedMilestone: null
+  }
 };
 
 const $ = id => document.getElementById(id);
@@ -59,6 +68,7 @@ const el = {
   projectView: $('projectView'),
   workControlView: $('workControlView'),
   equipmentGlobalView: $('equipmentGlobalView'),
+  mechanicalView: $('mechanicalView'),
   globalAdminView: $('globalAdminView'),
   purchasesView: $('purchasesView'),
   deliveriesView: $('deliveriesView'),
@@ -293,6 +303,45 @@ const el = {
   equipmentCleanMap: $('equipmentCleanMap'),
   equipmentFullscreen: $('equipmentFullscreen'),
 
+  backFromMechanicalBtn: $('backFromMechanicalBtn'),
+  mechanicalProjectSubtitle: $('mechanicalProjectSubtitle'),
+  mechanicalStatus: $('mechanicalStatus'),
+  newSubmittalPackageBtn: $('newSubmittalPackageBtn'),
+  mechanicalMilestoneCount: $('mechanicalMilestoneCount'),
+  mechanicalReadyCount: $('mechanicalReadyCount'),
+  mechanicalRiskCount: $('mechanicalRiskCount'),
+  mechanicalApprovedCount: $('mechanicalApprovedCount'),
+  mechanicalApprovedMeta: $('mechanicalApprovedMeta'),
+  mechanicalReadinessGrid: $('mechanicalReadinessGrid'),
+  mechanicalPackageSearch: $('mechanicalPackageSearch'),
+  mechanicalPackageStatusFilter: $('mechanicalPackageStatusFilter'),
+  mechanicalPackageBody: $('mechanicalPackageBody'),
+
+  submittalPackageModal: $('submittalPackageModal'),
+  submittalPackageModalTitle: $('submittalPackageModalTitle'),
+  closeSubmittalPackageModalBtn: $('closeSubmittalPackageModalBtn'),
+  cancelSubmittalPackageBtn: $('cancelSubmittalPackageBtn'),
+  submittalPackageForm: $('submittalPackageForm'),
+  submittalPackageId: $('submittalPackageId'),
+  submittalPackageName: $('submittalPackageName'),
+  submittalPackageSystem: $('submittalPackageSystem'),
+  submittalPackageStatus: $('submittalPackageStatus'),
+  submittalPackageRevision: $('submittalPackageRevision'),
+  submittalPackageOwner: $('submittalPackageOwner'),
+  submittalPackageForecast: $('submittalPackageForecast'),
+  submittalPackageNotes: $('submittalPackageNotes'),
+  deleteSubmittalPackageBtn: $('deleteSubmittalPackageBtn'),
+
+  milestoneSubmittalModal: $('milestoneSubmittalModal'),
+  milestoneSubmittalModalTitle: $('milestoneSubmittalModalTitle'),
+  milestoneSubmittalModalMeta: $('milestoneSubmittalModalMeta'),
+  closeMilestoneSubmittalModalBtn: $('closeMilestoneSubmittalModalBtn'),
+  milestoneSubmittalExisting: $('milestoneSubmittalExisting'),
+  milestoneSubmittalPackageSelect: $('milestoneSubmittalPackageSelect'),
+  milestoneSubmittalRequiredStatus: $('milestoneSubmittalRequiredStatus'),
+  milestoneSubmittalMandatory: $('milestoneSubmittalMandatory'),
+  saveMilestoneSubmittalLinkBtn: $('saveMilestoneSubmittalLinkBtn'),
+
   backendForm: $('backendForm'),
   backendAction: $('backendAction'),
   backendCredential: $('backendCredential'),
@@ -333,6 +382,7 @@ function show(view) {
     el.projectView,
     el.workControlView,
     el.equipmentGlobalView,
+    el.mechanicalView,
     el.globalAdminView,
     el.purchasesView,
     el.deliveriesView,
@@ -451,6 +501,17 @@ window.addEventListener('message', event => {
       handleDeliveryMutation(msg.payload);
       break;
 
+    case 'mechanicalReadiness':
+      handleMechanicalReadiness(msg.payload);
+      break;
+
+    case 'submittalPackageSave':
+    case 'submittalPackageDelete':
+    case 'milestoneSubmittalLinkSave':
+    case 'milestoneSubmittalLinkDelete':
+      handleMechanicalMutation(msg.payload);
+      break;
+
     case 'workControlBootstrap':
       handleWorkControlBootstrap(msg.payload);
       break;
@@ -515,6 +576,9 @@ window.addEventListener('message', event => {
 
       if (!el.warehouseView.classList.contains('hidden')) {
         setStatus(el.warehouseStatus, msg.payload?.message || 'Error de servidor.', 'error');
+      }
+      if (!el.mechanicalView.classList.contains('hidden')) {
+        setStatus(el.mechanicalStatus, msg.payload?.message || 'Error de Mechanical.', 'error');
       }
       if (!el.workControlView.classList.contains('hidden')) {
         setStatus(el.workControlStatus, msg.payload?.message || 'Error de Control Horario.', 'error');
@@ -636,7 +700,7 @@ function renderModules() {
       const card = document.createElement('article');
       card.className = 'module-card';
 
-      if (['site','equipment','purchases','deliveries','warehouse'].includes(module.key)) {
+      if (['site','equipment','mechanical','purchases','deliveries','warehouse'].includes(module.key)) {
         card.classList.add('clickable');
       }
 
@@ -665,6 +729,10 @@ function renderModules() {
         card.addEventListener('click', openEquipmentGlobal);
       }
 
+      if (module.key === 'mechanical') {
+        card.addEventListener('click', openMechanical);
+      }
+
       if (module.key === 'warehouse') {
         card.addEventListener('click', openWarehouse);
       }
@@ -673,6 +741,440 @@ function renderModules() {
     });
 }
 
+
+
+
+/* MECHANICAL · SUBMITTAL / CONSTRUCTION READINESS */
+function openMechanical() {
+  if (!state.currentProject) return;
+
+  show(el.mechanicalView);
+  el.mechanicalProjectSubtitle.textContent =
+    `${state.currentProject.id} · ${state.currentProject.name || state.currentProject.id}`;
+
+  setStatus(el.mechanicalStatus, 'Cargando preparación documental…');
+  postToBackend('mechanicalReadiness', {
+    projectId:state.currentProject.id
+  });
+}
+
+
+function handleMechanicalReadiness(payload) {
+  if (!payload?.ok) {
+    setStatus(el.mechanicalStatus, payload?.message || 'No se ha podido cargar Mechanical.', 'error');
+    return;
+  }
+
+  const m = state.mechanical;
+  m.packages = Array.isArray(payload.packages) ? payload.packages : [];
+  m.milestones = Array.isArray(payload.milestones) ? payload.milestones : [];
+  m.links = Array.isArray(payload.links) ? payload.links : [];
+  m.canEdit = payload.canEdit === true;
+
+  el.newSubmittalPackageBtn.classList.toggle('hidden', !m.canEdit);
+
+  renderMechanicalSummary();
+  renderMechanicalReadiness();
+  renderMechanicalPackages();
+  clearStatus(el.mechanicalStatus);
+}
+
+
+function mechanicalReadinessStatusLabel(status) {
+  return ({
+    READY:'LISTO PARA EJECUTAR',
+    AT_RISK:'EN RIESGO',
+    BLOCKED:'BLOQUEADO',
+    NOT_CONFIGURED:'SIN CONFIGURAR'
+  })[status] || status || 'SIN CONFIGURAR';
+}
+
+function mechanicalPackageStatusLabel(status) {
+  return ({
+    A:'A · Aprobado',
+    B:'B',
+    C:'C',
+    SUBMITTED:'Enviado',
+    DRAFT:'Borrador',
+    REJECTED:'Rechazado'
+  })[status] || status || 'Borrador';
+}
+
+
+function mechanicalDaysText(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+  const n = Number(value);
+  if (n === 0) return 'TODAY';
+  if (n > 0) return `${n} d`;
+  return `${Math.abs(n)} d late`;
+}
+
+
+function mechanicalForecastText(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+  const n = Number(value);
+  if (n === 0) return '0 d';
+  return n > 0 ? `+${n} d` : `${n} d`;
+}
+
+
+function renderMechanicalSummary() {
+  const milestones = state.mechanical.milestones || [];
+  const packages = state.mechanical.packages || [];
+
+  const configured = milestones.filter(x => (x.readiness?.requiredPackages || 0) > 0);
+  const ready = configured.filter(x => x.readiness?.readinessStatus === 'READY');
+  const risk = configured.filter(x =>
+    ['AT_RISK','BLOCKED'].includes(x.readiness?.readinessStatus)
+  );
+  const approved = packages.filter(x => x.status === 'A').length;
+
+  el.mechanicalMilestoneCount.textContent = configured.length;
+  el.mechanicalReadyCount.textContent = ready.length;
+  el.mechanicalRiskCount.textContent = risk.length;
+  el.mechanicalApprovedCount.textContent = approved;
+  el.mechanicalApprovedMeta.textContent = `de ${packages.length} paquetes`;
+}
+
+
+function renderMechanicalReadiness() {
+  const milestones = state.mechanical.milestones || [];
+  el.mechanicalReadinessGrid.innerHTML = '';
+
+  if (!milestones.length) {
+    el.mechanicalReadinessGrid.innerHTML = `
+      <div class="mechanical-empty-panel">
+        No hay hitos Mechanical/General en Deliveries. Crea primero el hito constructivo y después asocia sus paquetes documentales.
+      </div>`;
+    return;
+  }
+
+  milestones.forEach(milestone => {
+    const r = milestone.readiness || {
+      readinessStatus:'NOT_CONFIGURED',
+      readinessIndex:0,
+      approvedPackages:0,
+      requiredPackages:0,
+      blockers:0,
+      daysToMilestone:null,
+      forecastMarginDays:null,
+      linkedPackages:[]
+    };
+
+    const card = document.createElement('article');
+    card.className = `readiness-kpi-panel ${String(r.readinessStatus || '').toLowerCase().replace('_','-')}`;
+
+    const packagesHtml = (r.linkedPackages || []).length
+      ? r.linkedPackages.map(pkg => `
+          <div class="readiness-package-row ${pkg.met ? 'met' : 'blocking'}">
+            <div>
+              <strong>${esc(pkg.name)}</strong>
+              <span>${esc(pkg.system || 'Mechanical')} · Rev ${esc(pkg.revision || '—')}</span>
+            </div>
+            <div class="readiness-package-requirement">
+              <span class="submittal-status status-${String(pkg.status || '').toLowerCase()}">${esc(mechanicalPackageStatusLabel(pkg.status))}</span>
+              <small>debe alcanzar ${esc(pkg.requiredStatus || 'A')}${pkg.mandatory ? ' · bloqueante' : ''}</small>
+            </div>
+          </div>
+        `).join('')
+      : `<div class="readiness-no-packages">Sin paquetes documentales asociados.</div>`;
+
+    const blockerHeadline =
+      r.blockers > 0
+        ? `${r.blockers} paquete${r.blockers === 1 ? '' : 's'} bloqueante${r.blockers === 1 ? '' : 's'}`
+        : r.requiredPackages > 0
+          ? 'Sin bloqueos documentales'
+          : 'Preparación documental pendiente de configurar';
+
+    card.innerHTML = `
+      <div class="readiness-panel-head">
+        <div>
+          <div class="readiness-date">${esc(milestone.date || 'Sin fecha')}</div>
+          <h3>${esc(milestone.title || 'Hito')}</h3>
+          <p>${esc(milestone.type || 'CONSTRUCTIVO')} · ${esc(milestone.discipline || 'MECHANICAL')}</p>
+        </div>
+        <span class="readiness-state state-${String(r.readinessStatus || '').toLowerCase().replace('_','-')}">
+          ${esc(mechanicalReadinessStatusLabel(r.readinessStatus))}
+        </span>
+      </div>
+
+      <div class="readiness-kpi-grid">
+        <div class="readiness-kpi primary">
+          <span>ÍNDICE DE PREPARACIÓN</span>
+          <strong>${Number(r.readinessIndex || 0)}</strong>
+          <small>preparación documental / 100</small>
+        </div>
+        <div class="readiness-kpi">
+          <span>PAQUETES APROBADOS</span>
+          <strong>${Number(r.approvedPackages || 0)} / ${Number(r.requiredPackages || 0)}</strong>
+          <small>requisitos obligatorios</small>
+        </div>
+        <div class="readiness-kpi ${r.blockers ? 'danger' : ''}">
+          <span>BLOQUEOS</span>
+          <strong>${Number(r.blockers || 0)}</strong>
+          <small>${esc(blockerHeadline)}</small>
+        </div>
+        <div class="readiness-kpi">
+          <span>DÍAS HASTA EL HITO</span>
+          <strong>${esc(mechanicalDaysText(r.daysToMilestone))}</strong>
+          <small>${esc(milestone.date || '—')}</small>
+        </div>
+        <div class="readiness-kpi ${Number(r.forecastMarginDays) < 0 ? 'danger' : ''}">
+          <span>MARGEN PREVISTO</span>
+          <strong>${esc(mechanicalForecastText(r.forecastMarginDays))}</strong>
+          <small>último bloqueo frente al hito</small>
+        </div>
+      </div>
+
+      <div class="readiness-associated-head">
+        <div>
+          <strong>Paquetes asociados</strong>
+          <span>${(r.linkedPackages || []).length} requisito${(r.linkedPackages || []).length === 1 ? '' : 's'} documental${(r.linkedPackages || []).length === 1 ? '' : 'es'}</span>
+        </div>
+        ${state.mechanical.canEdit
+          ? `<button type="button" class="btn btn-secondary btn-sm readiness-manage-btn">Gestionar asociación</button>`
+          : ''}
+      </div>
+
+      <div class="readiness-packages-list">
+        ${packagesHtml}
+      </div>
+
+      <div class="readiness-action ${r.blockers ? 'has-action' : 'no-action'}">
+        <strong>Acción requerida</strong>
+        <span>${
+          r.requiredPackages === 0
+            ? 'Asociar los paquetes documentales necesarios para poder evaluar este hito.'
+            : r.blockers > 0
+              ? `${r.blockers} paquete${r.blockers === 1 ? '' : 's'} debe${r.blockers === 1 ? '' : 'n'} alcanzar el estado requerido antes del hito.`
+              : 'Ninguna. El hito cumple actualmente los requisitos documentales configurados.'
+        }</span>
+      </div>
+    `;
+
+    card.querySelector('.readiness-manage-btn')?.addEventListener('click', () => {
+      openMilestoneSubmittalModal(milestone);
+    });
+
+    el.mechanicalReadinessGrid.appendChild(card);
+  });
+}
+
+
+function renderMechanicalPackages() {
+  const q = el.mechanicalPackageSearch.value.trim().toLowerCase();
+  const status = el.mechanicalPackageStatusFilter.value;
+
+  const rows = (state.mechanical.packages || []).filter(pkg => {
+    if (status && pkg.status !== status) return false;
+    if (q) {
+      const haystack = [
+        pkg.name,pkg.system,pkg.owner,pkg.revision,pkg.status
+      ].join(' ').toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+
+  el.mechanicalPackageBody.innerHTML = '';
+
+  if (!rows.length) {
+    el.mechanicalPackageBody.innerHTML = `
+      <tr><td colspan="8"><div class="empty-state">No hay paquetes que coincidan con los filtros.</div></td></tr>`;
+    return;
+  }
+
+  rows.forEach(pkg => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <strong>${esc(pkg.name)}</strong>
+        ${pkg.notes ? `<small>${esc(pkg.notes)}</small>` : ''}
+      </td>
+      <td>${esc(pkg.system || '—')}</td>
+      <td><span class="submittal-status status-${String(pkg.status || '').toLowerCase()}">${esc(mechanicalPackageStatusLabel(pkg.status))}</span></td>
+      <td>${esc(pkg.revision || '—')}</td>
+      <td>${esc(pkg.owner || '—')}</td>
+      <td>${esc(pkg.forecastApprovalDate || '—')}</td>
+      <td><strong>${Number(pkg.linkedMilestones || 0)}</strong></td>
+      <td>${state.mechanical.canEdit ? '<button type="button" class="btn btn-secondary btn-sm package-edit-btn">Editar</button>' : ''}</td>
+    `;
+
+    tr.querySelector('.package-edit-btn')?.addEventListener('click', () => {
+      openSubmittalPackageModal(pkg);
+    });
+
+    el.mechanicalPackageBody.appendChild(tr);
+  });
+}
+
+
+function openSubmittalPackageModal(pkg = null) {
+  state.mechanical.selectedPackage = pkg;
+
+  el.submittalPackageModalTitle.textContent = pkg ? 'Editar paquete' : 'Nuevo paquete';
+  el.submittalPackageId.value = pkg?.packageId || '';
+  el.submittalPackageName.value = pkg?.name || '';
+  el.submittalPackageSystem.value = pkg?.system || '';
+  el.submittalPackageStatus.value = pkg?.status || 'DRAFT';
+  el.submittalPackageRevision.value = pkg?.revision || '';
+  el.submittalPackageOwner.value = pkg?.owner || '';
+  el.submittalPackageForecast.value = pkg?.forecastApprovalDate || '';
+  el.submittalPackageNotes.value = pkg?.notes || '';
+  el.deleteSubmittalPackageBtn.classList.toggle('hidden', !pkg);
+
+  el.submittalPackageModal.classList.remove('hidden');
+}
+
+
+function closeSubmittalPackageModal() {
+  el.submittalPackageModal.classList.add('hidden');
+  state.mechanical.selectedPackage = null;
+}
+
+
+function submitSubmittalPackage(event) {
+  event.preventDefault();
+  if (!state.currentProject) return;
+
+  postToBackend('submittalPackageSave', {
+    projectId:state.currentProject.id,
+    packageId:el.submittalPackageId.value,
+    name:el.submittalPackageName.value,
+    system:el.submittalPackageSystem.value,
+    status:el.submittalPackageStatus.value,
+    revision:el.submittalPackageRevision.value,
+    owner:el.submittalPackageOwner.value,
+    forecastApprovalDate:el.submittalPackageForecast.value,
+    notes:el.submittalPackageNotes.value
+  });
+}
+
+
+function deleteSubmittalPackage() {
+  const pkg = state.mechanical.selectedPackage;
+  if (!pkg || !state.currentProject) return;
+
+  if (!window.confirm(`¿Eliminar el paquete "${pkg.name}"? También se desactivarán sus asociaciones con hitos.`)) return;
+
+  postToBackend('submittalPackageDelete', {
+    projectId:state.currentProject.id,
+    packageId:pkg.packageId
+  });
+}
+
+
+function openMilestoneSubmittalModal(milestone) {
+  state.mechanical.selectedMilestone = milestone;
+
+  el.milestoneSubmittalModalTitle.textContent = milestone.title || 'Hito';
+  el.milestoneSubmittalModalMeta.textContent =
+    `${milestone.date || 'Sin fecha'} · ${milestone.type || 'CONSTRUCTIVO'}`;
+
+  renderMilestoneSubmittalExisting();
+
+  const linkedIds = new Set(
+    (state.mechanical.links || [])
+      .filter(link => link.milestoneId === milestone.milestoneId)
+      .map(link => link.packageId)
+  );
+
+  const available = (state.mechanical.packages || [])
+    .filter(pkg => !linkedIds.has(pkg.packageId));
+
+  el.milestoneSubmittalPackageSelect.innerHTML = available.length
+    ? available.map(pkg =>
+        `<option value="${esc(pkg.packageId)}">${esc(pkg.system ? pkg.system + ' · ' : '')}${esc(pkg.name)} · ${esc(mechanicalPackageStatusLabel(pkg.status))}</option>`
+      ).join('')
+    : '<option value="">No quedan paquetes sin asociar</option>';
+
+  el.saveMilestoneSubmittalLinkBtn.disabled = !available.length;
+  el.milestoneSubmittalRequiredStatus.value = 'A';
+  el.milestoneSubmittalMandatory.checked = true;
+
+  el.milestoneSubmittalModal.classList.remove('hidden');
+}
+
+
+function closeMilestoneSubmittalModal() {
+  el.milestoneSubmittalModal.classList.add('hidden');
+  state.mechanical.selectedMilestone = null;
+}
+
+
+function renderMilestoneSubmittalExisting() {
+  const milestone = state.mechanical.selectedMilestone;
+  if (!milestone) return;
+
+  const links = (state.mechanical.links || [])
+    .filter(link => link.milestoneId === milestone.milestoneId);
+
+  if (!links.length) {
+    el.milestoneSubmittalExisting.innerHTML =
+      '<div class="empty-state">Este hito todavía no tiene paquetes documentales asociados.</div>';
+    return;
+  }
+
+  const packageMap = {};
+  (state.mechanical.packages || []).forEach(pkg => packageMap[pkg.packageId] = pkg);
+
+  el.milestoneSubmittalExisting.innerHTML = links.map(link => {
+    const pkg = packageMap[link.packageId] || {};
+    return `
+      <div class="mechanical-link-row">
+        <div>
+          <strong>${esc(pkg.name || link.packageId)}</strong>
+          <span>${esc(pkg.system || 'Mechanical')} · estado actual ${esc(mechanicalPackageStatusLabel(pkg.status))}</span>
+        </div>
+        <div class="mechanical-link-row-meta">
+          <span>Estado requerido <strong>${esc(link.requiredStatus || 'A')}</strong></span>
+          <span>${link.mandatory ? 'BLOQUEANTE' : 'NO BLOQUEANTE'}</span>
+          <button type="button" class="link-delete-btn" data-link-id="${esc(link.linkId)}">Eliminar</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  el.milestoneSubmittalExisting.querySelectorAll('.link-delete-btn').forEach(button => {
+    button.addEventListener('click', () => {
+      postToBackend('milestoneSubmittalLinkDelete', {
+        projectId:state.currentProject.id,
+        linkId:button.dataset.linkId
+      });
+    });
+  });
+}
+
+
+function saveMilestoneSubmittalLink() {
+  const milestone = state.mechanical.selectedMilestone;
+  const packageId = el.milestoneSubmittalPackageSelect.value;
+
+  if (!milestone || !packageId) return;
+
+  postToBackend('milestoneSubmittalLinkSave', {
+    projectId:state.currentProject.id,
+    milestoneId:milestone.milestoneId,
+    packageId:packageId,
+    requiredStatus:el.milestoneSubmittalRequiredStatus.value,
+    mandatory:el.milestoneSubmittalMandatory.checked
+  });
+}
+
+
+function handleMechanicalMutation(payload) {
+  if (!payload?.ok) {
+    setStatus(el.mechanicalStatus, payload?.message || 'No se ha podido guardar el cambio.', 'error');
+    return;
+  }
+
+  closeSubmittalPackageModal();
+  closeMilestoneSubmittalModal();
+  setStatus(el.mechanicalStatus, payload.message || 'Cambio guardado.', 'success');
+
+  postToBackend('mechanicalReadiness', {
+    projectId:state.currentProject.id
+  });
+}
 
 
 /* CONTROL DE TRABAJOS · INTEGRACIÓN CONTROL HORARIO */
@@ -1934,6 +2436,13 @@ function renderConstructionMilestones() {
       <div class="milestone-card-metrics">
         <span><strong>${linked.length}</strong> deliveries</span>
         ${late ? `<span class="milestone-risk"><strong>${late}</strong> después del hito</span>` : '<span class="milestone-ok">Sin conflictos</span>'}
+        ${milestone.documentReadiness
+          ? `<span class="delivery-doc-readiness doc-${String(milestone.documentReadiness.readinessStatus || '').toLowerCase().replace('_','-')}">
+              Documentación: <strong>${esc(mechanicalReadinessStatusLabel(milestone.documentReadiness.readinessStatus))}</strong>
+              · ${Number(milestone.documentReadiness.approvedPackages || 0)}/${Number(milestone.documentReadiness.requiredPackages || 0)} A
+              ${milestone.documentReadiness.blockers ? ` · ${Number(milestone.documentReadiness.blockers)} bloqueo` : ''}
+            </span>`
+          : '<span class="delivery-doc-readiness doc-not-configured">Documentación: sin configurar</span>'}
       </div>
     `;
     card.addEventListener('click', () => openConstructionMilestoneModal(milestone));
@@ -2805,6 +3314,23 @@ el.equipmentGlobalProjectFilter.addEventListener('change', renderEquipmentGlobal
 el.equipmentTypeFilter.addEventListener('change', renderEquipmentGlobal);
 el.equipmentCleanMap.addEventListener('click', toggleEquipmentCleanMap);
 el.equipmentFullscreen.addEventListener('click', toggleEquipmentFullscreen);
+
+
+/* MECHANICAL EVENTS */
+el.backFromMechanicalBtn.addEventListener('click', () => show(el.projectView));
+el.newSubmittalPackageBtn.addEventListener('click', () => openSubmittalPackageModal());
+el.mechanicalPackageSearch.addEventListener('input', renderMechanicalPackages);
+el.mechanicalPackageStatusFilter.addEventListener('change', renderMechanicalPackages);
+
+el.closeSubmittalPackageModalBtn.addEventListener('click', closeSubmittalPackageModal);
+el.cancelSubmittalPackageBtn.addEventListener('click', closeSubmittalPackageModal);
+el.submittalPackageModal.querySelector('.modal-backdrop').addEventListener('click', closeSubmittalPackageModal);
+el.submittalPackageForm.addEventListener('submit', submitSubmittalPackage);
+el.deleteSubmittalPackageBtn.addEventListener('click', deleteSubmittalPackage);
+
+el.closeMilestoneSubmittalModalBtn.addEventListener('click', closeMilestoneSubmittalModal);
+el.milestoneSubmittalModal.querySelector('.modal-backdrop').addEventListener('click', closeMilestoneSubmittalModal);
+el.saveMilestoneSubmittalLinkBtn.addEventListener('click', saveMilestoneSubmittalLink);
 
 /* EVENTS */
 el.logoutBtn.addEventListener('click', logout);

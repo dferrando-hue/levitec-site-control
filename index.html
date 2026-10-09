@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=0.8.4">
+  <link rel="stylesheet" href="styles.css?v=0.9.1">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -304,6 +304,95 @@
     <div id="warehouseZonesList" class="zones-grid"></div>
   </div>
 
+</section>
+
+
+<section id="mechanicalView" class="view hidden">
+  <div class="section-toolbar mechanical-toolbar">
+    <button id="backFromMechanicalBtn" class="btn btn-secondary" type="button">← Proyecto</button>
+    <div>
+      <div class="eyebrow">MECHANICAL · PREPARACIÓN DOCUMENTAL</div>
+      <h1>Preparación documental para ejecución</h1>
+      <p id="mechanicalProjectSubtitle" class="muted"></p>
+    </div>
+    <button id="newSubmittalPackageBtn" class="btn btn-primary" type="button">+ Paquete de submittals</button>
+  </div>
+
+  <div id="mechanicalStatus" class="status hidden"></div>
+
+  <div class="mechanical-top-kpis">
+    <div class="mechanical-top-kpi">
+      <span>HITOS DOCUMENTALES</span>
+      <strong id="mechanicalMilestoneCount">0</strong>
+      <small>con seguimiento</small>
+    </div>
+    <div class="mechanical-top-kpi ready">
+      <span>LISTOS PARA EJECUTAR</span>
+      <strong id="mechanicalReadyCount">0</strong>
+      <small>sin bloqueos documentales</small>
+    </div>
+    <div class="mechanical-top-kpi risk">
+      <span>EN RIESGO / BLOQUEADOS</span>
+      <strong id="mechanicalRiskCount">0</strong>
+      <small>requieren acción</small>
+    </div>
+    <div class="mechanical-top-kpi">
+      <span>PAQUETES APROBADOS (A)</span>
+      <strong id="mechanicalApprovedCount">0</strong>
+      <small id="mechanicalApprovedMeta">de 0 paquetes</small>
+    </div>
+  </div>
+
+  <div class="mechanical-section-head">
+    <div>
+      <div class="eyebrow">HITOS CONSTRUCTIVOS</div>
+      <h2>Preparación documental por hito</h2>
+      <p class="muted">Cada panel evalúa únicamente los paquetes documentales asociados a ese hito constructivo.</p>
+    </div>
+  </div>
+
+  <div id="mechanicalReadinessGrid" class="mechanical-readiness-grid"></div>
+
+  <div class="mechanical-packages-section">
+    <div class="mechanical-section-head">
+      <div>
+        <div class="eyebrow">SEGUIMIENTO DE SUBMITTALS</div>
+        <h2>Paquetes documentales</h2>
+        <p class="muted">Estado maestro de los paquetes de submittals del proyecto.</p>
+      </div>
+    </div>
+
+    <div class="mechanical-package-filters">
+      <input id="mechanicalPackageSearch" type="search" placeholder="Buscar paquete, sistema o responsable…">
+      <select id="mechanicalPackageStatusFilter">
+        <option value="">Todos los estados</option>
+        <option value="A">A · Aprobado</option>
+        <option value="B">B</option>
+        <option value="C">C</option>
+        <option value="SUBMITTED">Enviado</option>
+        <option value="DRAFT">Borrador</option>
+        <option value="REJECTED">Rechazado</option>
+      </select>
+    </div>
+
+    <div class="mechanical-package-table-wrap">
+      <table class="mechanical-package-table">
+        <thead>
+          <tr>
+            <th>Paquete</th>
+            <th>Sistema</th>
+            <th>Estado</th>
+            <th>Rev.</th>
+            <th>Responsable</th>
+            <th>Fecha prevista de aprobación</th>
+            <th>Hitos asociados</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="mechanicalPackageBody"></tbody>
+      </table>
+    </div>
+  </div>
 </section>
 
 <section id="deliveriesView" class="view hidden">
@@ -830,6 +919,117 @@
   </div>
 </div>
 
+
+<div id="submittalPackageModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-card mechanical-modal-card">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">MECHANICAL · PAQUETE DE SUBMITTALS</div>
+        <h2 id="submittalPackageModalTitle">Nuevo paquete</h2>
+      </div>
+      <button id="closeSubmittalPackageModalBtn" class="icon-btn" type="button">×</button>
+    </div>
+
+    <form id="submittalPackageForm">
+      <input id="submittalPackageId" type="hidden">
+
+      <div class="form-grid">
+        <label class="span-2">
+          <span>Nombre del paquete *</span>
+          <input id="submittalPackageName" type="text" placeholder="Ej. VRV Equipment & Controls" required>
+        </label>
+
+        <label>
+          <span>Sistema</span>
+          <input id="submittalPackageSystem" type="text" placeholder="VRV / Diésel / CRAC / Soportación…">
+        </label>
+
+        <label>
+          <span>Estado</span>
+          <select id="submittalPackageStatus">
+            <option value="DRAFT">Borrador</option>
+            <option value="SUBMITTED">Enviado</option>
+            <option value="C">C</option>
+            <option value="B">B</option>
+            <option value="A">A · Aprobado</option>
+            <option value="REJECTED">Rechazado</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Revisión</span>
+          <input id="submittalPackageRevision" type="text" placeholder="Rev.03">
+        </label>
+
+        <label>
+          <span>Responsable</span>
+          <input id="submittalPackageOwner" type="text" placeholder="Responsable / owner">
+        </label>
+
+        <label>
+          <span>Fecha prevista de aprobación</span>
+          <input id="submittalPackageForecast" type="date">
+        </label>
+
+        <label class="span-2">
+          <span>Observaciones</span>
+          <textarea id="submittalPackageNotes" rows="4" placeholder="Comentarios, dependencias, revisión pendiente…"></textarea>
+        </label>
+      </div>
+
+      <div class="modal-actions mechanical-modal-actions">
+        <button id="deleteSubmittalPackageBtn" class="btn btn-danger hidden" type="button">Eliminar</button>
+        <div class="modal-actions-right">
+          <button id="cancelSubmittalPackageBtn" class="btn btn-secondary" type="button">Cancelar</button>
+          <button class="btn btn-primary" type="submit">Guardar paquete</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<div id="milestoneSubmittalModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-card mechanical-link-modal">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">MECHANICAL · ASOCIACIÓN CON HITO</div>
+        <h2 id="milestoneSubmittalModalTitle">Paquetes requeridos</h2>
+        <p id="milestoneSubmittalModalMeta" class="muted modal-sub"></p>
+      </div>
+      <button id="closeMilestoneSubmittalModalBtn" class="icon-btn" type="button">×</button>
+    </div>
+
+    <div id="milestoneSubmittalExisting" class="mechanical-link-existing"></div>
+
+    <div class="mechanical-link-add">
+      <div class="eyebrow">AÑADIR REQUISITO</div>
+      <div class="mechanical-link-form">
+        <label>
+          <span>Paquete</span>
+          <select id="milestoneSubmittalPackageSelect"></select>
+        </label>
+        <label>
+          <span>Estado requerido</span>
+          <select id="milestoneSubmittalRequiredStatus">
+            <option value="A">A · Aprobado</option>
+            <option value="B">B</option>
+            <option value="C">C</option>
+            <option value="SUBMITTED">Enviado</option>
+          </select>
+        </label>
+        <label class="mechanical-checkbox-label">
+          <input id="milestoneSubmittalMandatory" type="checkbox" checked>
+          <span>Obligatorio / bloqueante</span>
+        </label>
+        <button id="saveMilestoneSubmittalLinkBtn" class="btn btn-primary" type="button">Asociar paquete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="deliveryModal" class="modal hidden">
   <div class="modal-backdrop"></div>
   <div class="modal-card modal-wide">
@@ -906,6 +1106,6 @@ window.LEVITEC_CONFIG = {
 };
 </script>
 
-<script src="app.js?v=0.8.4"></script>
+<script src="app.js?v=0.9.1"></script>
 </body>
 </html>
