@@ -51,12 +51,14 @@ const state = {
   equipmentGlobal: [],
 
   mechanical: {
-    packages: [],
+    submittals: [],
+    subpackages: [],
     milestones: [],
     links: [],
     canEdit: false,
-    selectedPackage: null,
-    selectedMilestone: null
+    selectedSubmittal: null,
+    selectedMilestone: null,
+    milestoneDraftSelection: new Set()
   }
 };
 
@@ -306,41 +308,50 @@ const el = {
   backFromMechanicalBtn: $('backFromMechanicalBtn'),
   mechanicalProjectSubtitle: $('mechanicalProjectSubtitle'),
   mechanicalStatus: $('mechanicalStatus'),
-  newSubmittalPackageBtn: $('newSubmittalPackageBtn'),
+  newMechanicalSubmittalBtn: $('newMechanicalSubmittalBtn'),
   mechanicalMilestoneCount: $('mechanicalMilestoneCount'),
   mechanicalReadyCount: $('mechanicalReadyCount'),
   mechanicalRiskCount: $('mechanicalRiskCount'),
   mechanicalApprovedCount: $('mechanicalApprovedCount'),
   mechanicalApprovedMeta: $('mechanicalApprovedMeta'),
   mechanicalReadinessGrid: $('mechanicalReadinessGrid'),
-  mechanicalPackageSearch: $('mechanicalPackageSearch'),
-  mechanicalPackageStatusFilter: $('mechanicalPackageStatusFilter'),
-  mechanicalPackageBody: $('mechanicalPackageBody'),
+  mechanicalSubpackageSummary: $('mechanicalSubpackageSummary'),
+  mechanicalSubmittalSearch: $('mechanicalSubmittalSearch'),
+  mechanicalSubpackageFilter: $('mechanicalSubpackageFilter'),
+  mechanicalSubmittalStatusFilter: $('mechanicalSubmittalStatusFilter'),
+  mechanicalSubmittalBody: $('mechanicalSubmittalBody'),
 
-  submittalPackageModal: $('submittalPackageModal'),
-  submittalPackageModalTitle: $('submittalPackageModalTitle'),
-  closeSubmittalPackageModalBtn: $('closeSubmittalPackageModalBtn'),
-  cancelSubmittalPackageBtn: $('cancelSubmittalPackageBtn'),
-  submittalPackageForm: $('submittalPackageForm'),
-  submittalPackageId: $('submittalPackageId'),
-  submittalPackageName: $('submittalPackageName'),
-  submittalPackageSystem: $('submittalPackageSystem'),
-  submittalPackageStatus: $('submittalPackageStatus'),
-  submittalPackageRevision: $('submittalPackageRevision'),
-  submittalPackageOwner: $('submittalPackageOwner'),
-  submittalPackageForecast: $('submittalPackageForecast'),
-  submittalPackageNotes: $('submittalPackageNotes'),
-  deleteSubmittalPackageBtn: $('deleteSubmittalPackageBtn'),
+  mechanicalSubmittalModal: $('mechanicalSubmittalModal'),
+  mechanicalSubmittalModalTitle: $('mechanicalSubmittalModalTitle'),
+  closeMechanicalSubmittalModalBtn: $('closeMechanicalSubmittalModalBtn'),
+  cancelMechanicalSubmittalBtn: $('cancelMechanicalSubmittalBtn'),
+  mechanicalSubmittalForm: $('mechanicalSubmittalForm'),
+  mechanicalSubmittalId: $('mechanicalSubmittalId'),
+  mechanicalSubmittalSubpackage: $('mechanicalSubmittalSubpackage'),
+  mechanicalNewSubpackageWrap: $('mechanicalNewSubpackageWrap'),
+  mechanicalNewSubpackage: $('mechanicalNewSubpackage'),
+  mechanicalSubmittalTrackerNumber: $('mechanicalSubmittalTrackerNumber'),
+  mechanicalSubmittalTechnicalNumber: $('mechanicalSubmittalTechnicalNumber'),
+  mechanicalSubmittalTitle: $('mechanicalSubmittalTitle'),
+  mechanicalSubmittalStatus: $('mechanicalSubmittalStatus'),
+  mechanicalSubmittalRevision: $('mechanicalSubmittalRevision'),
+  mechanicalSubmittalOwner: $('mechanicalSubmittalOwner'),
+  mechanicalSubmittalPlannedDate: $('mechanicalSubmittalPlannedDate'),
+  mechanicalSubmittalForecast: $('mechanicalSubmittalForecast'),
+  mechanicalSubmittalNotes: $('mechanicalSubmittalNotes'),
+  deleteMechanicalSubmittalBtn: $('deleteMechanicalSubmittalBtn'),
 
   milestoneSubmittalModal: $('milestoneSubmittalModal'),
   milestoneSubmittalModalTitle: $('milestoneSubmittalModalTitle'),
   milestoneSubmittalModalMeta: $('milestoneSubmittalModalMeta'),
   closeMilestoneSubmittalModalBtn: $('closeMilestoneSubmittalModalBtn'),
-  milestoneSubmittalExisting: $('milestoneSubmittalExisting'),
-  milestoneSubmittalPackageSelect: $('milestoneSubmittalPackageSelect'),
-  milestoneSubmittalRequiredStatus: $('milestoneSubmittalRequiredStatus'),
-  milestoneSubmittalMandatory: $('milestoneSubmittalMandatory'),
-  saveMilestoneSubmittalLinkBtn: $('saveMilestoneSubmittalLinkBtn'),
+  cancelMilestoneSubmittalBtn: $('cancelMilestoneSubmittalBtn'),
+  milestoneSubmittalSearch: $('milestoneSubmittalSearch'),
+  milestoneSelectAllVisibleBtn: $('milestoneSelectAllVisibleBtn'),
+  milestoneClearVisibleBtn: $('milestoneClearVisibleBtn'),
+  milestoneSubmittalGroups: $('milestoneSubmittalGroups'),
+  milestoneSelectedCount: $('milestoneSelectedCount'),
+  saveMilestoneSubmittalLinksBtn: $('saveMilestoneSubmittalLinksBtn'),
 
   backendForm: $('backendForm'),
   backendAction: $('backendAction'),
@@ -505,10 +516,9 @@ window.addEventListener('message', event => {
       handleMechanicalReadiness(msg.payload);
       break;
 
-    case 'submittalPackageSave':
-    case 'submittalPackageDelete':
-    case 'milestoneSubmittalLinkSave':
-    case 'milestoneSubmittalLinkDelete':
+    case 'mechanicalSubmittalSave':
+    case 'mechanicalSubmittalDelete':
+    case 'milestoneSubmittalLinksSaveBatch':
       handleMechanicalMutation(msg.payload);
       break;
 
@@ -744,7 +754,7 @@ function renderModules() {
 
 
 
-/* MECHANICAL · SUBMITTAL / CONSTRUCTION READINESS */
+/* MECHANICAL · SUBMITTALS INDIVIDUALES / READINESS POR HITO */
 function openMechanical() {
   if (!state.currentProject) return;
 
@@ -766,16 +776,19 @@ function handleMechanicalReadiness(payload) {
   }
 
   const m = state.mechanical;
-  m.packages = Array.isArray(payload.packages) ? payload.packages : [];
+  m.submittals = Array.isArray(payload.submittals) ? payload.submittals : [];
+  m.subpackages = Array.isArray(payload.subpackages) ? payload.subpackages : [];
   m.milestones = Array.isArray(payload.milestones) ? payload.milestones : [];
   m.links = Array.isArray(payload.links) ? payload.links : [];
   m.canEdit = payload.canEdit === true;
 
-  el.newSubmittalPackageBtn.classList.toggle('hidden', !m.canEdit);
+  el.newMechanicalSubmittalBtn.classList.toggle('hidden', !m.canEdit);
 
+  populateMechanicalFilters();
   renderMechanicalSummary();
   renderMechanicalReadiness();
-  renderMechanicalPackages();
+  renderMechanicalSubpackages();
+  renderMechanicalSubmittals();
   clearStatus(el.mechanicalStatus);
 }
 
@@ -789,24 +802,26 @@ function mechanicalReadinessStatusLabel(status) {
   })[status] || status || 'SIN CONFIGURAR';
 }
 
-function mechanicalPackageStatusLabel(status) {
+
+function mechanicalSubmittalStatusLabel(status) {
   return ({
     A:'A · Aprobado',
     B:'B',
     C:'C',
+    D:'D · No revisado / no aplica',
     SUBMITTED:'Enviado',
-    DRAFT:'Borrador',
+    PENDING:'Pendiente',
     REJECTED:'Rechazado'
-  })[status] || status || 'Borrador';
+  })[status] || status || 'Pendiente';
 }
 
 
 function mechanicalDaysText(value) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
   const n = Number(value);
-  if (n === 0) return 'TODAY';
+  if (n === 0) return 'HOY';
   if (n > 0) return `${n} d`;
-  return `${Math.abs(n)} d late`;
+  return `${Math.abs(n)} d tarde`;
 }
 
 
@@ -820,20 +835,20 @@ function mechanicalForecastText(value) {
 
 function renderMechanicalSummary() {
   const milestones = state.mechanical.milestones || [];
-  const packages = state.mechanical.packages || [];
+  const submittals = state.mechanical.submittals || [];
 
-  const configured = milestones.filter(x => (x.readiness?.requiredPackages || 0) > 0);
+  const configured = milestones.filter(x => (x.readiness?.requiredSubmittals || 0) > 0);
   const ready = configured.filter(x => x.readiness?.readinessStatus === 'READY');
   const risk = configured.filter(x =>
     ['AT_RISK','BLOCKED'].includes(x.readiness?.readinessStatus)
   );
-  const approved = packages.filter(x => x.status === 'A').length;
+  const approved = submittals.filter(x => x.status === 'A').length;
 
   el.mechanicalMilestoneCount.textContent = configured.length;
   el.mechanicalReadyCount.textContent = ready.length;
   el.mechanicalRiskCount.textContent = risk.length;
   el.mechanicalApprovedCount.textContent = approved;
-  el.mechanicalApprovedMeta.textContent = `de ${packages.length} paquetes`;
+  el.mechanicalApprovedMeta.textContent = `de ${submittals.length} submittals`;
 }
 
 
@@ -844,7 +859,7 @@ function renderMechanicalReadiness() {
   if (!milestones.length) {
     el.mechanicalReadinessGrid.innerHTML = `
       <div class="mechanical-empty-panel">
-        No hay hitos Mechanical/General en Deliveries. Crea primero el hito constructivo y después asocia sus paquetes documentales.
+        No hay hitos Mechanical/General en Deliveries. Crea primero el hito constructivo.
       </div>`;
     return;
   }
@@ -853,38 +868,53 @@ function renderMechanicalReadiness() {
     const r = milestone.readiness || {
       readinessStatus:'NOT_CONFIGURED',
       readinessIndex:0,
-      approvedPackages:0,
-      requiredPackages:0,
+      approvedSubmittals:0,
+      requiredSubmittals:0,
       blockers:0,
       daysToMilestone:null,
       forecastMarginDays:null,
-      linkedPackages:[]
+      linkedSubmittals:[],
+      statusCounts:{}
     };
 
     const card = document.createElement('article');
     card.className = `readiness-kpi-panel ${String(r.readinessStatus || '').toLowerCase().replace('_','-')}`;
 
-    const packagesHtml = (r.linkedPackages || []).length
-      ? r.linkedPackages.map(pkg => `
-          <div class="readiness-package-row ${pkg.met ? 'met' : 'blocking'}">
-            <div>
-              <strong>${esc(pkg.name)}</strong>
-              <span>${esc(pkg.system || 'Mechanical')} · Rev ${esc(pkg.revision || '—')}</span>
+    const grouped = {};
+    (r.linkedSubmittals || []).forEach(item => {
+      const key = item.subpackage || 'Sin subpaquete';
+      (grouped[key] ||= []).push(item);
+    });
+
+    const groupsHtml = Object.keys(grouped).length
+      ? Object.keys(grouped).sort().map(group => `
+          <div class="readiness-subpackage-group">
+            <div class="readiness-subpackage-title">
+              <strong>${esc(group)}</strong>
+              <span>${grouped[group].filter(x => x.status === 'A').length}/${grouped[group].length} en A</span>
             </div>
-            <div class="readiness-package-requirement">
-              <span class="submittal-status status-${String(pkg.status || '').toLowerCase()}">${esc(mechanicalPackageStatusLabel(pkg.status))}</span>
-              <small>debe alcanzar ${esc(pkg.requiredStatus || 'A')}${pkg.mandatory ? ' · bloqueante' : ''}</small>
-            </div>
+            ${grouped[group].map(item => `
+              <div class="readiness-package-row ${item.status === 'A' ? 'met' : 'blocking'}">
+                <div>
+                  <strong>${esc(item.title)}</strong>
+                  <span>${esc(item.technicalNumber || item.trackerNumber || 'Sin referencia')} · Rev ${esc(item.revision || '—')}</span>
+                </div>
+                <div class="readiness-package-requirement">
+                  <span class="submittal-status status-${String(item.status || '').toLowerCase()}">${esc(mechanicalSubmittalStatusLabel(item.status))}</span>
+                  <small>${item.status === 'A' ? 'cumple' : 'debe alcanzar A'}</small>
+                </div>
+              </div>
+            `).join('')}
           </div>
         `).join('')
-      : `<div class="readiness-no-packages">Sin paquetes documentales asociados.</div>`;
+      : `<div class="readiness-no-packages">Sin submittals asociados a este hito.</div>`;
 
     const blockerHeadline =
       r.blockers > 0
-        ? `${r.blockers} paquete${r.blockers === 1 ? '' : 's'} bloqueante${r.blockers === 1 ? '' : 's'}`
-        : r.requiredPackages > 0
+        ? `${r.blockers} submittal${r.blockers === 1 ? '' : 's'} pendiente${r.blockers === 1 ? '' : 's'} de A`
+        : r.requiredSubmittals > 0
           ? 'Sin bloqueos documentales'
-          : 'Preparación documental pendiente de configurar';
+          : 'Pendiente de definir los documentos aplicables';
 
     card.innerHTML = `
       <div class="readiness-panel-head">
@@ -902,12 +932,12 @@ function renderMechanicalReadiness() {
         <div class="readiness-kpi primary">
           <span>ÍNDICE DE PREPARACIÓN</span>
           <strong>${Number(r.readinessIndex || 0)}</strong>
-          <small>preparación documental / 100</small>
+          <small>submittals en A / 100</small>
         </div>
         <div class="readiness-kpi">
-          <span>PAQUETES APROBADOS</span>
-          <strong>${Number(r.approvedPackages || 0)} / ${Number(r.requiredPackages || 0)}</strong>
-          <small>requisitos obligatorios</small>
+          <span>SUBMITTALS EN A</span>
+          <strong>${Number(r.approvedSubmittals || 0)} / ${Number(r.requiredSubmittals || 0)}</strong>
+          <small>documentos requeridos</small>
         </div>
         <div class="readiness-kpi ${r.blockers ? 'danger' : ''}">
           <span>BLOQUEOS</span>
@@ -922,32 +952,32 @@ function renderMechanicalReadiness() {
         <div class="readiness-kpi ${Number(r.forecastMarginDays) < 0 ? 'danger' : ''}">
           <span>MARGEN PREVISTO</span>
           <strong>${esc(mechanicalForecastText(r.forecastMarginDays))}</strong>
-          <small>último bloqueo frente al hito</small>
+          <small>última aprobación prevista frente al hito</small>
         </div>
       </div>
 
       <div class="readiness-associated-head">
         <div>
-          <strong>Paquetes asociados</strong>
-          <span>${(r.linkedPackages || []).length} requisito${(r.linkedPackages || []).length === 1 ? '' : 's'} documental${(r.linkedPackages || []).length === 1 ? '' : 'es'}</span>
+          <strong>Submittals aplicables al hito</strong>
+          <span>${Number(r.requiredSubmittals || 0)} documento${Number(r.requiredSubmittals || 0) === 1 ? '' : 's'} requerido${Number(r.requiredSubmittals || 0) === 1 ? '' : 's'}</span>
         </div>
         ${state.mechanical.canEdit
-          ? `<button type="button" class="btn btn-secondary btn-sm readiness-manage-btn">Gestionar asociación</button>`
+          ? `<button type="button" class="btn btn-secondary btn-sm readiness-manage-btn">Definir documentos aplicables</button>`
           : ''}
       </div>
 
       <div class="readiness-packages-list">
-        ${packagesHtml}
+        ${groupsHtml}
       </div>
 
       <div class="readiness-action ${r.blockers ? 'has-action' : 'no-action'}">
         <strong>Acción requerida</strong>
         <span>${
-          r.requiredPackages === 0
-            ? 'Asociar los paquetes documentales necesarios para poder evaluar este hito.'
+          r.requiredSubmittals === 0
+            ? 'Seleccionar los submittals que deben estar aprobados antes de ejecutar este hito.'
             : r.blockers > 0
-              ? `${r.blockers} paquete${r.blockers === 1 ? '' : 's'} debe${r.blockers === 1 ? '' : 'n'} alcanzar el estado requerido antes del hito.`
-              : 'Ninguna. El hito cumple actualmente los requisitos documentales configurados.'
+              ? `${r.blockers} submittal${r.blockers === 1 ? '' : 's'} debe${r.blockers === 1 ? '' : 'n'} alcanzar Estado A antes del hito.`
+              : 'Ninguna. Todos los submittals aplicables están en Estado A.'
         }</span>
       </div>
     `;
@@ -961,105 +991,212 @@ function renderMechanicalReadiness() {
 }
 
 
-function renderMechanicalPackages() {
-  const q = el.mechanicalPackageSearch.value.trim().toLowerCase();
-  const status = el.mechanicalPackageStatusFilter.value;
+function populateMechanicalFilters() {
+  const current = el.mechanicalSubpackageFilter.value;
 
-  const rows = (state.mechanical.packages || []).filter(pkg => {
-    if (status && pkg.status !== status) return false;
+  el.mechanicalSubpackageFilter.innerHTML =
+    '<option value="">Todos los subpaquetes</option>' +
+    (state.mechanical.subpackages || [])
+      .map(x => `<option value="${esc(x)}">${esc(x)}</option>`)
+      .join('');
+
+  if ([...el.mechanicalSubpackageFilter.options].some(o => o.value === current)) {
+    el.mechanicalSubpackageFilter.value = current;
+  }
+}
+
+
+function renderMechanicalSubpackages() {
+  const submittals = state.mechanical.submittals || [];
+  const groups = {};
+
+  submittals.forEach(item => {
+    const key = item.subpackage || 'Sin subpaquete';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(item);
+  });
+
+  el.mechanicalSubpackageSummary.innerHTML = Object.keys(groups)
+    .sort()
+    .map(name => {
+      const items = groups[name];
+      const approved = items.filter(x => x.status === 'A').length;
+      const active = items.filter(x => !['A','D'].includes(x.status)).length;
+      return `
+        <button class="subpackage-summary-card" type="button" data-subpackage="${esc(name)}">
+          <span>${esc(name)}</span>
+          <strong>${approved}/${items.length}</strong>
+          <small>${approved} en A · ${active} abiertos</small>
+        </button>`;
+    }).join('');
+
+  el.mechanicalSubpackageSummary.querySelectorAll('.subpackage-summary-card').forEach(btn => {
+    btn.addEventListener('click', () => {
+      el.mechanicalSubpackageFilter.value = btn.dataset.subpackage;
+      renderMechanicalSubmittals();
+    });
+  });
+}
+
+
+function renderMechanicalSubmittals() {
+  const q = el.mechanicalSubmittalSearch.value.trim().toLowerCase();
+  const subpackage = el.mechanicalSubpackageFilter.value;
+  const status = el.mechanicalSubmittalStatusFilter.value;
+
+  const rows = (state.mechanical.submittals || []).filter(item => {
+    if (subpackage && item.subpackage !== subpackage) return false;
+    if (status && item.status !== status) return false;
+
     if (q) {
       const haystack = [
-        pkg.name,pkg.system,pkg.owner,pkg.revision,pkg.status
+        item.trackerNumber,
+        item.technicalNumber,
+        item.title,
+        item.subpackage,
+        item.owner,
+        item.status
       ].join(' ').toLowerCase();
+
       if (!haystack.includes(q)) return false;
     }
+
     return true;
   });
 
-  el.mechanicalPackageBody.innerHTML = '';
+  el.mechanicalSubmittalBody.innerHTML = '';
 
   if (!rows.length) {
-    el.mechanicalPackageBody.innerHTML = `
-      <tr><td colspan="8"><div class="empty-state">No hay paquetes que coincidan con los filtros.</div></td></tr>`;
+    el.mechanicalSubmittalBody.innerHTML = `
+      <tr><td colspan="8"><div class="empty-state">No hay submittals que coincidan con los filtros.</div></td></tr>`;
     return;
   }
 
-  rows.forEach(pkg => {
+  rows.forEach(item => {
     const tr = document.createElement('tr');
+
     tr.innerHTML = `
       <td>
-        <strong>${esc(pkg.name)}</strong>
-        ${pkg.notes ? `<small>${esc(pkg.notes)}</small>` : ''}
+        <strong>${esc(item.title)}</strong>
+        <small>${esc(item.technicalNumber || item.trackerNumber || 'Sin referencia')}</small>
       </td>
-      <td>${esc(pkg.system || '—')}</td>
-      <td><span class="submittal-status status-${String(pkg.status || '').toLowerCase()}">${esc(mechanicalPackageStatusLabel(pkg.status))}</span></td>
-      <td>${esc(pkg.revision || '—')}</td>
-      <td>${esc(pkg.owner || '—')}</td>
-      <td>${esc(pkg.forecastApprovalDate || '—')}</td>
-      <td><strong>${Number(pkg.linkedMilestones || 0)}</strong></td>
-      <td>${state.mechanical.canEdit ? '<button type="button" class="btn btn-secondary btn-sm package-edit-btn">Editar</button>' : ''}</td>
+      <td>${esc(item.subpackage || '—')}</td>
+      <td><span class="submittal-status status-${String(item.status || '').toLowerCase()}">${esc(mechanicalSubmittalStatusLabel(item.status))}</span></td>
+      <td>${esc(item.revision || '—')}</td>
+      <td>${esc(item.owner || '—')}</td>
+      <td>${esc(item.forecastApprovalDate || item.plannedDate || '—')}</td>
+      <td><strong>${Number(item.linkedMilestones || 0)}</strong></td>
+      <td>${state.mechanical.canEdit ? '<button type="button" class="btn btn-secondary btn-sm submittal-edit-btn">Editar</button>' : ''}</td>
     `;
 
-    tr.querySelector('.package-edit-btn')?.addEventListener('click', () => {
-      openSubmittalPackageModal(pkg);
+    tr.querySelector('.submittal-edit-btn')?.addEventListener('click', () => {
+      openMechanicalSubmittalModal(item);
     });
 
-    el.mechanicalPackageBody.appendChild(tr);
+    el.mechanicalSubmittalBody.appendChild(tr);
   });
 }
 
 
-function openSubmittalPackageModal(pkg = null) {
-  state.mechanical.selectedPackage = pkg;
+function buildSubpackageSelector(selected = '') {
+  const list = [...new Set(state.mechanical.subpackages || [])].sort();
+  const values = list.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('');
 
-  el.submittalPackageModalTitle.textContent = pkg ? 'Editar paquete' : 'Nuevo paquete';
-  el.submittalPackageId.value = pkg?.packageId || '';
-  el.submittalPackageName.value = pkg?.name || '';
-  el.submittalPackageSystem.value = pkg?.system || '';
-  el.submittalPackageStatus.value = pkg?.status || 'DRAFT';
-  el.submittalPackageRevision.value = pkg?.revision || '';
-  el.submittalPackageOwner.value = pkg?.owner || '';
-  el.submittalPackageForecast.value = pkg?.forecastApprovalDate || '';
-  el.submittalPackageNotes.value = pkg?.notes || '';
-  el.deleteSubmittalPackageBtn.classList.toggle('hidden', !pkg);
+  el.mechanicalSubmittalSubpackage.innerHTML =
+    '<option value="">Selecciona subpaquete…</option>' +
+    values +
+    '<option value="__NEW__">+ Crear nuevo subpaquete</option>';
 
-  el.submittalPackageModal.classList.remove('hidden');
+  if (selected && list.includes(selected)) {
+    el.mechanicalSubmittalSubpackage.value = selected;
+  } else if (selected) {
+    el.mechanicalSubmittalSubpackage.value = '__NEW__';
+    el.mechanicalNewSubpackage.value = selected;
+  } else {
+    el.mechanicalSubmittalSubpackage.value = '';
+  }
+
+  toggleNewSubpackage();
 }
 
 
-function closeSubmittalPackageModal() {
-  el.submittalPackageModal.classList.add('hidden');
-  state.mechanical.selectedPackage = null;
+function toggleNewSubpackage() {
+  const isNew = el.mechanicalSubmittalSubpackage.value === '__NEW__';
+  el.mechanicalNewSubpackageWrap.classList.toggle('hidden', !isNew);
+  if (!isNew) el.mechanicalNewSubpackage.value = '';
 }
 
 
-function submitSubmittalPackage(event) {
+function openMechanicalSubmittalModal(item = null) {
+  state.mechanical.selectedSubmittal = item;
+
+  el.mechanicalSubmittalModalTitle.textContent =
+    item ? 'Editar submittal' : 'Añadir submittal';
+
+  el.mechanicalSubmittalId.value = item?.submittalId || '';
+  buildSubpackageSelector(item?.subpackage || '');
+  el.mechanicalSubmittalTrackerNumber.value = item?.trackerNumber || '';
+  el.mechanicalSubmittalTechnicalNumber.value = item?.technicalNumber || '';
+  el.mechanicalSubmittalTitle.value = item?.title || '';
+  el.mechanicalSubmittalStatus.value = item?.status || 'PENDING';
+  el.mechanicalSubmittalRevision.value = item?.revision || '';
+  el.mechanicalSubmittalOwner.value = item?.owner || '';
+  el.mechanicalSubmittalPlannedDate.value = item?.plannedDate || '';
+  el.mechanicalSubmittalForecast.value = item?.forecastApprovalDate || '';
+  el.mechanicalSubmittalNotes.value = item?.notes || '';
+  el.deleteMechanicalSubmittalBtn.classList.toggle('hidden', !item);
+
+  el.mechanicalSubmittalModal.classList.remove('hidden');
+}
+
+
+function closeMechanicalSubmittalModal() {
+  el.mechanicalSubmittalModal.classList.add('hidden');
+  state.mechanical.selectedSubmittal = null;
+}
+
+
+function submitMechanicalSubmittal(event) {
   event.preventDefault();
   if (!state.currentProject) return;
 
-  postToBackend('submittalPackageSave', {
+  const selected = el.mechanicalSubmittalSubpackage.value;
+  const subpackage =
+    selected === '__NEW__'
+      ? el.mechanicalNewSubpackage.value.trim()
+      : selected;
+
+  if (!subpackage) {
+    window.alert('Selecciona o crea un subpaquete.');
+    return;
+  }
+
+  postToBackend('mechanicalSubmittalSave', {
     projectId:state.currentProject.id,
-    packageId:el.submittalPackageId.value,
-    name:el.submittalPackageName.value,
-    system:el.submittalPackageSystem.value,
-    status:el.submittalPackageStatus.value,
-    revision:el.submittalPackageRevision.value,
-    owner:el.submittalPackageOwner.value,
-    forecastApprovalDate:el.submittalPackageForecast.value,
-    notes:el.submittalPackageNotes.value
+    submittalId:el.mechanicalSubmittalId.value,
+    subpackage:subpackage,
+    trackerNumber:el.mechanicalSubmittalTrackerNumber.value,
+    technicalNumber:el.mechanicalSubmittalTechnicalNumber.value,
+    title:el.mechanicalSubmittalTitle.value,
+    status:el.mechanicalSubmittalStatus.value,
+    revision:el.mechanicalSubmittalRevision.value,
+    owner:el.mechanicalSubmittalOwner.value,
+    plannedDate:el.mechanicalSubmittalPlannedDate.value,
+    forecastApprovalDate:el.mechanicalSubmittalForecast.value,
+    notes:el.mechanicalSubmittalNotes.value
   });
 }
 
 
-function deleteSubmittalPackage() {
-  const pkg = state.mechanical.selectedPackage;
-  if (!pkg || !state.currentProject) return;
+function deleteMechanicalSubmittal() {
+  const item = state.mechanical.selectedSubmittal;
+  if (!item || !state.currentProject) return;
 
-  if (!window.confirm(`¿Eliminar el paquete "${pkg.name}"? También se desactivarán sus asociaciones con hitos.`)) return;
+  if (!window.confirm(`¿Eliminar el submittal "${item.title}"? También se quitará de los hitos asociados.`)) return;
 
-  postToBackend('submittalPackageDelete', {
+  postToBackend('mechanicalSubmittalDelete', {
     projectId:state.currentProject.id,
-    packageId:pkg.packageId
+    submittalId:item.submittalId
   });
 }
 
@@ -1067,31 +1204,20 @@ function deleteSubmittalPackage() {
 function openMilestoneSubmittalModal(milestone) {
   state.mechanical.selectedMilestone = milestone;
 
+  const selected = new Set(
+    (state.mechanical.links || [])
+      .filter(link => link.milestoneId === milestone.milestoneId)
+      .map(link => link.submittalId)
+  );
+
+  state.mechanical.milestoneDraftSelection = selected;
+
   el.milestoneSubmittalModalTitle.textContent = milestone.title || 'Hito';
   el.milestoneSubmittalModalMeta.textContent =
     `${milestone.date || 'Sin fecha'} · ${milestone.type || 'CONSTRUCTIVO'}`;
+  el.milestoneSubmittalSearch.value = '';
 
-  renderMilestoneSubmittalExisting();
-
-  const linkedIds = new Set(
-    (state.mechanical.links || [])
-      .filter(link => link.milestoneId === milestone.milestoneId)
-      .map(link => link.packageId)
-  );
-
-  const available = (state.mechanical.packages || [])
-    .filter(pkg => !linkedIds.has(pkg.packageId));
-
-  el.milestoneSubmittalPackageSelect.innerHTML = available.length
-    ? available.map(pkg =>
-        `<option value="${esc(pkg.packageId)}">${esc(pkg.system ? pkg.system + ' · ' : '')}${esc(pkg.name)} · ${esc(mechanicalPackageStatusLabel(pkg.status))}</option>`
-      ).join('')
-    : '<option value="">No quedan paquetes sin asociar</option>';
-
-  el.saveMilestoneSubmittalLinkBtn.disabled = !available.length;
-  el.milestoneSubmittalRequiredStatus.value = 'A';
-  el.milestoneSubmittalMandatory.checked = true;
-
+  renderMilestoneSubmittalSelector();
   el.milestoneSubmittalModal.classList.remove('hidden');
 }
 
@@ -1099,64 +1225,120 @@ function openMilestoneSubmittalModal(milestone) {
 function closeMilestoneSubmittalModal() {
   el.milestoneSubmittalModal.classList.add('hidden');
   state.mechanical.selectedMilestone = null;
+  state.mechanical.milestoneDraftSelection = new Set();
 }
 
 
-function renderMilestoneSubmittalExisting() {
-  const milestone = state.mechanical.selectedMilestone;
-  if (!milestone) return;
+function visibleMilestoneSubmittals() {
+  const q = el.milestoneSubmittalSearch.value.trim().toLowerCase();
 
-  const links = (state.mechanical.links || [])
-    .filter(link => link.milestoneId === milestone.milestoneId);
+  return (state.mechanical.submittals || []).filter(item => {
+    if (!q) return true;
 
-  if (!links.length) {
-    el.milestoneSubmittalExisting.innerHTML =
-      '<div class="empty-state">Este hito todavía no tiene paquetes documentales asociados.</div>';
-    return;
-  }
+    const haystack = [
+      item.trackerNumber,
+      item.technicalNumber,
+      item.title,
+      item.subpackage,
+      item.owner
+    ].join(' ').toLowerCase();
 
-  const packageMap = {};
-  (state.mechanical.packages || []).forEach(pkg => packageMap[pkg.packageId] = pkg);
-
-  el.milestoneSubmittalExisting.innerHTML = links.map(link => {
-    const pkg = packageMap[link.packageId] || {};
-    return `
-      <div class="mechanical-link-row">
-        <div>
-          <strong>${esc(pkg.name || link.packageId)}</strong>
-          <span>${esc(pkg.system || 'Mechanical')} · estado actual ${esc(mechanicalPackageStatusLabel(pkg.status))}</span>
-        </div>
-        <div class="mechanical-link-row-meta">
-          <span>Estado requerido <strong>${esc(link.requiredStatus || 'A')}</strong></span>
-          <span>${link.mandatory ? 'BLOQUEANTE' : 'NO BLOQUEANTE'}</span>
-          <button type="button" class="link-delete-btn" data-link-id="${esc(link.linkId)}">Eliminar</button>
-        </div>
-      </div>`;
-  }).join('');
-
-  el.milestoneSubmittalExisting.querySelectorAll('.link-delete-btn').forEach(button => {
-    button.addEventListener('click', () => {
-      postToBackend('milestoneSubmittalLinkDelete', {
-        projectId:state.currentProject.id,
-        linkId:button.dataset.linkId
-      });
-    });
+    return haystack.includes(q);
   });
 }
 
 
-function saveMilestoneSubmittalLink() {
+function renderMilestoneSubmittalSelector() {
+  const items = visibleMilestoneSubmittals();
+  const selected = state.mechanical.milestoneDraftSelection;
+  const groups = {};
+
+  items.forEach(item => {
+    const key = item.subpackage || 'Sin subpaquete';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(item);
+  });
+
+  el.milestoneSubmittalGroups.innerHTML = Object.keys(groups).sort().map(group => {
+    const rows = groups[group];
+
+    return `
+      <section class="milestone-submittal-group">
+        <div class="milestone-submittal-group-head">
+          <div>
+            <strong>${esc(group)}</strong>
+            <span>${rows.filter(x => selected.has(x.submittalId)).length}/${rows.length} seleccionados</span>
+          </div>
+          <button class="group-toggle-btn" type="button">Ver documentos</button>
+        </div>
+
+        <div class="milestone-submittal-group-body">
+          ${rows.map(item => `
+            <label class="milestone-submittal-option">
+              <input
+                type="checkbox"
+                value="${esc(item.submittalId)}"
+                ${selected.has(item.submittalId) ? 'checked' : ''}
+              >
+              <span class="milestone-option-main">
+                <strong>${esc(item.title)}</strong>
+                <small>${esc(item.technicalNumber || item.trackerNumber || 'Sin referencia')} · Rev ${esc(item.revision || '—')}</small>
+              </span>
+              <span class="submittal-status status-${String(item.status || '').toLowerCase()}">${esc(mechanicalSubmittalStatusLabel(item.status))}</span>
+            </label>
+          `).join('')}
+        </div>
+      </section>`;
+  }).join('');
+
+  el.milestoneSubmittalGroups.querySelectorAll('.milestone-submittal-option input').forEach(input => {
+    input.addEventListener('change', () => {
+      if (input.checked) selected.add(input.value);
+      else selected.delete(input.value);
+      updateMilestoneSelectedCount();
+    });
+  });
+
+  el.milestoneSubmittalGroups.querySelectorAll('.group-toggle-btn').forEach(button => {
+    button.addEventListener('click', () => {
+      const section = button.closest('.milestone-submittal-group');
+      section.classList.toggle('collapsed');
+      button.textContent = section.classList.contains('collapsed')
+        ? 'Ver documentos'
+        : 'Ocultar';
+    });
+  });
+
+  updateMilestoneSelectedCount();
+}
+
+
+function updateMilestoneSelectedCount() {
+  el.milestoneSelectedCount.textContent =
+    state.mechanical.milestoneDraftSelection.size;
+}
+
+
+function selectVisibleMilestoneSubmittals(checked) {
+  const selected = state.mechanical.milestoneDraftSelection;
+
+  visibleMilestoneSubmittals().forEach(item => {
+    if (checked) selected.add(item.submittalId);
+    else selected.delete(item.submittalId);
+  });
+
+  renderMilestoneSubmittalSelector();
+}
+
+
+function saveMilestoneSubmittalLinks() {
   const milestone = state.mechanical.selectedMilestone;
-  const packageId = el.milestoneSubmittalPackageSelect.value;
+  if (!milestone || !state.currentProject) return;
 
-  if (!milestone || !packageId) return;
-
-  postToBackend('milestoneSubmittalLinkSave', {
+  postToBackend('milestoneSubmittalLinksSaveBatch', {
     projectId:state.currentProject.id,
     milestoneId:milestone.milestoneId,
-    packageId:packageId,
-    requiredStatus:el.milestoneSubmittalRequiredStatus.value,
-    mandatory:el.milestoneSubmittalMandatory.checked
+    submittalIds:[...state.mechanical.milestoneDraftSelection]
   });
 }
 
@@ -1167,7 +1349,7 @@ function handleMechanicalMutation(payload) {
     return;
   }
 
-  closeSubmittalPackageModal();
+  closeMechanicalSubmittalModal();
   closeMilestoneSubmittalModal();
   setStatus(el.mechanicalStatus, payload.message || 'Cambio guardado.', 'success');
 
@@ -2439,7 +2621,7 @@ function renderConstructionMilestones() {
         ${milestone.documentReadiness
           ? `<span class="delivery-doc-readiness doc-${String(milestone.documentReadiness.readinessStatus || '').toLowerCase().replace('_','-')}">
               Documentación: <strong>${esc(mechanicalReadinessStatusLabel(milestone.documentReadiness.readinessStatus))}</strong>
-              · ${Number(milestone.documentReadiness.approvedPackages || 0)}/${Number(milestone.documentReadiness.requiredPackages || 0)} A
+              · ${Number(milestone.documentReadiness.approvedSubmittals || 0)}/${Number(milestone.documentReadiness.requiredSubmittals || 0)} en A
               ${milestone.documentReadiness.blockers ? ` · ${Number(milestone.documentReadiness.blockers)} bloqueo` : ''}
             </span>`
           : '<span class="delivery-doc-readiness doc-not-configured">Documentación: sin configurar</span>'}
@@ -3318,19 +3500,26 @@ el.equipmentFullscreen.addEventListener('click', toggleEquipmentFullscreen);
 
 /* MECHANICAL EVENTS */
 el.backFromMechanicalBtn.addEventListener('click', () => show(el.projectView));
-el.newSubmittalPackageBtn.addEventListener('click', () => openSubmittalPackageModal());
-el.mechanicalPackageSearch.addEventListener('input', renderMechanicalPackages);
-el.mechanicalPackageStatusFilter.addEventListener('change', renderMechanicalPackages);
 
-el.closeSubmittalPackageModalBtn.addEventListener('click', closeSubmittalPackageModal);
-el.cancelSubmittalPackageBtn.addEventListener('click', closeSubmittalPackageModal);
-el.submittalPackageModal.querySelector('.modal-backdrop').addEventListener('click', closeSubmittalPackageModal);
-el.submittalPackageForm.addEventListener('submit', submitSubmittalPackage);
-el.deleteSubmittalPackageBtn.addEventListener('click', deleteSubmittalPackage);
+el.newMechanicalSubmittalBtn.addEventListener('click', () => openMechanicalSubmittalModal());
+el.mechanicalSubmittalSearch.addEventListener('input', renderMechanicalSubmittals);
+el.mechanicalSubpackageFilter.addEventListener('change', renderMechanicalSubmittals);
+el.mechanicalSubmittalStatusFilter.addEventListener('change', renderMechanicalSubmittals);
+
+el.closeMechanicalSubmittalModalBtn.addEventListener('click', closeMechanicalSubmittalModal);
+el.cancelMechanicalSubmittalBtn.addEventListener('click', closeMechanicalSubmittalModal);
+el.mechanicalSubmittalModal.querySelector('.modal-backdrop').addEventListener('click', closeMechanicalSubmittalModal);
+el.mechanicalSubmittalForm.addEventListener('submit', submitMechanicalSubmittal);
+el.mechanicalSubmittalSubpackage.addEventListener('change', toggleNewSubpackage);
+el.deleteMechanicalSubmittalBtn.addEventListener('click', deleteMechanicalSubmittal);
 
 el.closeMilestoneSubmittalModalBtn.addEventListener('click', closeMilestoneSubmittalModal);
+el.cancelMilestoneSubmittalBtn.addEventListener('click', closeMilestoneSubmittalModal);
 el.milestoneSubmittalModal.querySelector('.modal-backdrop').addEventListener('click', closeMilestoneSubmittalModal);
-el.saveMilestoneSubmittalLinkBtn.addEventListener('click', saveMilestoneSubmittalLink);
+el.milestoneSubmittalSearch.addEventListener('input', renderMilestoneSubmittalSelector);
+el.milestoneSelectAllVisibleBtn.addEventListener('click', () => selectVisibleMilestoneSubmittals(true));
+el.milestoneClearVisibleBtn.addEventListener('click', () => selectVisibleMilestoneSubmittals(false));
+el.saveMilestoneSubmittalLinksBtn.addEventListener('click', saveMilestoneSubmittalLinks);
 
 /* EVENTS */
 el.logoutBtn.addEventListener('click', logout);

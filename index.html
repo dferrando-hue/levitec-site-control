@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=0.9.1">
+  <link rel="stylesheet" href="styles.css?v=0.10.0">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -315,31 +315,31 @@
       <h1>Preparación documental para ejecución</h1>
       <p id="mechanicalProjectSubtitle" class="muted"></p>
     </div>
-    <button id="newSubmittalPackageBtn" class="btn btn-primary" type="button">+ Paquete de submittals</button>
+    <button id="newMechanicalSubmittalBtn" class="btn btn-primary" type="button">+ Añadir submittal</button>
   </div>
 
   <div id="mechanicalStatus" class="status hidden"></div>
 
   <div class="mechanical-top-kpis">
     <div class="mechanical-top-kpi">
-      <span>HITOS DOCUMENTALES</span>
+      <span>HITOS CON SEGUIMIENTO</span>
       <strong id="mechanicalMilestoneCount">0</strong>
-      <small>con seguimiento</small>
+      <small>hitos con submittals asociados</small>
     </div>
     <div class="mechanical-top-kpi ready">
       <span>LISTOS PARA EJECUTAR</span>
       <strong id="mechanicalReadyCount">0</strong>
-      <small>sin bloqueos documentales</small>
+      <small>100% de submittals en A</small>
     </div>
     <div class="mechanical-top-kpi risk">
       <span>EN RIESGO / BLOQUEADOS</span>
       <strong id="mechanicalRiskCount">0</strong>
-      <small>requieren acción</small>
+      <small>requieren acción documental</small>
     </div>
     <div class="mechanical-top-kpi">
-      <span>PAQUETES APROBADOS (A)</span>
+      <span>SUBMITTALS EN A</span>
       <strong id="mechanicalApprovedCount">0</strong>
-      <small id="mechanicalApprovedMeta">de 0 paquetes</small>
+      <small id="mechanicalApprovedMeta">de 0 submittals</small>
     </div>
   </div>
 
@@ -347,49 +347,55 @@
     <div>
       <div class="eyebrow">HITOS CONSTRUCTIVOS</div>
       <h2>Preparación documental por hito</h2>
-      <p class="muted">Cada panel evalúa únicamente los paquetes documentales asociados a ese hito constructivo.</p>
+      <p class="muted">Cada hito exige únicamente los submittals que realmente aplican a esa actividad.</p>
     </div>
   </div>
 
   <div id="mechanicalReadinessGrid" class="mechanical-readiness-grid"></div>
 
-  <div class="mechanical-packages-section">
+  <div class="mechanical-submittals-section">
     <div class="mechanical-section-head">
       <div>
-        <div class="eyebrow">SEGUIMIENTO DE SUBMITTALS</div>
-        <h2>Paquetes documentales</h2>
-        <p class="muted">Estado maestro de los paquetes de submittals del proyecto.</p>
+        <div class="eyebrow">PAQUETE MECHANICAL · SUBPAQUETES</div>
+        <h2>Tracker de submittals</h2>
+        <p class="muted">Submittals individuales del tracker, agrupados por subpaquete. Puedes añadir manualmente cualquier documento que falte.</p>
       </div>
     </div>
 
-    <div class="mechanical-package-filters">
-      <input id="mechanicalPackageSearch" type="search" placeholder="Buscar paquete, sistema o responsable…">
-      <select id="mechanicalPackageStatusFilter">
+    <div id="mechanicalSubpackageSummary" class="mechanical-subpackage-summary"></div>
+
+    <div class="mechanical-submittal-filters">
+      <input id="mechanicalSubmittalSearch" type="search" placeholder="Buscar número, título, subpaquete o responsable…">
+      <select id="mechanicalSubpackageFilter">
+        <option value="">Todos los subpaquetes</option>
+      </select>
+      <select id="mechanicalSubmittalStatusFilter">
         <option value="">Todos los estados</option>
         <option value="A">A · Aprobado</option>
         <option value="B">B</option>
         <option value="C">C</option>
+        <option value="D">D · No revisado / no aplica</option>
         <option value="SUBMITTED">Enviado</option>
-        <option value="DRAFT">Borrador</option>
+        <option value="PENDING">Pendiente</option>
         <option value="REJECTED">Rechazado</option>
       </select>
     </div>
 
     <div class="mechanical-package-table-wrap">
-      <table class="mechanical-package-table">
+      <table class="mechanical-package-table mechanical-submittal-table">
         <thead>
           <tr>
-            <th>Paquete</th>
-            <th>Sistema</th>
+            <th>Submittal</th>
+            <th>Subpaquete</th>
             <th>Estado</th>
             <th>Rev.</th>
             <th>Responsable</th>
-            <th>Fecha prevista de aprobación</th>
-            <th>Hitos asociados</th>
+            <th>Fecha prevista</th>
+            <th>Hitos</th>
             <th></th>
           </tr>
         </thead>
-        <tbody id="mechanicalPackageBody"></tbody>
+        <tbody id="mechanicalSubmittalBody"></tbody>
       </table>
     </div>
   </div>
@@ -920,69 +926,125 @@
 </div>
 
 
-<div id="submittalPackageModal" class="modal hidden">
+<div id="mechanicalSubmittalModal" class="modal hidden">
   <div class="modal-backdrop"></div>
-  <div class="modal-card mechanical-modal-card">
+  <div class="modal-card mechanical-submittal-modal">
     <div class="modal-head">
       <div>
-        <div class="eyebrow">MECHANICAL · PAQUETE DE SUBMITTALS</div>
-        <h2 id="submittalPackageModalTitle">Nuevo paquete</h2>
+        <div class="eyebrow">MECHANICAL · SUBMITTAL INDIVIDUAL</div>
+        <h2 id="mechanicalSubmittalModalTitle">Añadir submittal</h2>
+        <p class="muted modal-sub">Añade un documento del tracker o uno adicional necesario para obra.</p>
       </div>
-      <button id="closeSubmittalPackageModalBtn" class="icon-btn" type="button">×</button>
+      <button id="closeMechanicalSubmittalModalBtn" class="icon-btn" type="button">×</button>
     </div>
 
-    <form id="submittalPackageForm">
-      <input id="submittalPackageId" type="hidden">
+    <form id="mechanicalSubmittalForm">
+      <input id="mechanicalSubmittalId" type="hidden">
 
-      <div class="form-grid">
-        <label class="span-2">
-          <span>Nombre del paquete *</span>
-          <input id="submittalPackageName" type="text" placeholder="Ej. VRV Equipment & Controls" required>
-        </label>
+      <div class="submittal-form-section">
+        <div class="submittal-form-section-head">
+          <span>01</span>
+          <div>
+            <strong>Identificación</strong>
+            <small>Subpaquete y referencia documental</small>
+          </div>
+        </div>
 
-        <label>
-          <span>Sistema</span>
-          <input id="submittalPackageSystem" type="text" placeholder="VRV / Diésel / CRAC / Soportación…">
-        </label>
+        <div class="form-grid">
+          <label>
+            <span>Subpaquete *</span>
+            <select id="mechanicalSubmittalSubpackage" required></select>
+          </label>
 
-        <label>
-          <span>Estado</span>
-          <select id="submittalPackageStatus">
-            <option value="DRAFT">Borrador</option>
-            <option value="SUBMITTED">Enviado</option>
-            <option value="C">C</option>
-            <option value="B">B</option>
-            <option value="A">A · Aprobado</option>
-            <option value="REJECTED">Rechazado</option>
-          </select>
-        </label>
+          <label id="mechanicalNewSubpackageWrap" class="hidden">
+            <span>Nuevo subpaquete *</span>
+            <input id="mechanicalNewSubpackage" type="text" placeholder="Ej. Fuel Controls">
+          </label>
 
-        <label>
-          <span>Revisión</span>
-          <input id="submittalPackageRevision" type="text" placeholder="Rev.03">
-        </label>
+          <label>
+            <span>Nº tracker</span>
+            <input id="mechanicalSubmittalTrackerNumber" type="text" placeholder="Ej. 0006.03">
+          </label>
 
-        <label>
-          <span>Responsable</span>
-          <input id="submittalPackageOwner" type="text" placeholder="Responsable / owner">
-        </label>
+          <label>
+            <span>Nº técnico</span>
+            <input id="mechanicalSubmittalTechnicalNumber" type="text" placeholder="ZAZ091-CAF-10-XX-SU-M-....">
+          </label>
 
-        <label>
-          <span>Fecha prevista de aprobación</span>
-          <input id="submittalPackageForecast" type="date">
-        </label>
+          <label class="span-2">
+            <span>Título del submittal *</span>
+            <input id="mechanicalSubmittalTitle" type="text" placeholder="Ej. Fuel distribution pipework" required>
+          </label>
+        </div>
+      </div>
 
-        <label class="span-2">
-          <span>Observaciones</span>
-          <textarea id="submittalPackageNotes" rows="4" placeholder="Comentarios, dependencias, revisión pendiente…"></textarea>
-        </label>
+      <div class="submittal-form-section">
+        <div class="submittal-form-section-head">
+          <span>02</span>
+          <div>
+            <strong>Estado documental</strong>
+            <small>Situación actual del documento</small>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <label>
+            <span>Estado</span>
+            <select id="mechanicalSubmittalStatus">
+              <option value="PENDING">Pendiente</option>
+              <option value="SUBMITTED">Enviado</option>
+              <option value="A">A · Aprobado</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+              <option value="D">D · No revisado / no aplica</option>
+              <option value="REJECTED">Rechazado</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Revisión</span>
+            <input id="mechanicalSubmittalRevision" type="text" placeholder="Ej. 02">
+          </label>
+
+          <label>
+            <span>Responsable / revisor</span>
+            <input id="mechanicalSubmittalOwner" type="text" placeholder="Ej. ARUP">
+          </label>
+        </div>
+      </div>
+
+      <div class="submittal-form-section">
+        <div class="submittal-form-section-head">
+          <span>03</span>
+          <div>
+            <strong>Planificación</strong>
+            <small>Fechas y observaciones para seguimiento</small>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <label>
+            <span>Fecha planificada</span>
+            <input id="mechanicalSubmittalPlannedDate" type="date">
+          </label>
+
+          <label>
+            <span>Fecha prevista de aprobación</span>
+            <input id="mechanicalSubmittalForecast" type="date">
+          </label>
+
+          <label class="span-2">
+            <span>Observaciones</span>
+            <textarea id="mechanicalSubmittalNotes" rows="4" placeholder="Comentarios, dependencia, feedback pendiente…"></textarea>
+          </label>
+        </div>
       </div>
 
       <div class="modal-actions mechanical-modal-actions">
-        <button id="deleteSubmittalPackageBtn" class="btn btn-danger hidden" type="button">Eliminar</button>
+        <button id="deleteMechanicalSubmittalBtn" class="btn btn-danger hidden" type="button">Eliminar</button>
         <div class="modal-actions-right">
-          <button id="cancelSubmittalPackageBtn" class="btn btn-secondary" type="button">Cancelar</button>
-          <button class="btn btn-primary" type="submit">Guardar paquete</button>
+          <button id="cancelMechanicalSubmittalBtn" class="btn btn-secondary" type="button">Cancelar</button>
+          <button class="btn btn-primary" type="submit">Guardar submittal</button>
         </div>
       </div>
     </form>
@@ -992,39 +1054,36 @@
 
 <div id="milestoneSubmittalModal" class="modal hidden">
   <div class="modal-backdrop"></div>
-  <div class="modal-card mechanical-link-modal">
+  <div class="modal-card milestone-submittal-selector-modal">
     <div class="modal-head">
       <div>
-        <div class="eyebrow">MECHANICAL · ASOCIACIÓN CON HITO</div>
-        <h2 id="milestoneSubmittalModalTitle">Paquetes requeridos</h2>
+        <div class="eyebrow">MECHANICAL · DOCUMENTOS APLICABLES AL HITO</div>
+        <h2 id="milestoneSubmittalModalTitle">Seleccionar submittals</h2>
         <p id="milestoneSubmittalModalMeta" class="muted modal-sub"></p>
       </div>
       <button id="closeMilestoneSubmittalModalBtn" class="icon-btn" type="button">×</button>
     </div>
 
-    <div id="milestoneSubmittalExisting" class="mechanical-link-existing"></div>
+    <div class="milestone-selector-help">
+      Marca únicamente los submittals que deben estar en <strong>Estado A</strong> antes de poder ejecutar este hito.
+    </div>
 
-    <div class="mechanical-link-add">
-      <div class="eyebrow">AÑADIR REQUISITO</div>
-      <div class="mechanical-link-form">
-        <label>
-          <span>Paquete</span>
-          <select id="milestoneSubmittalPackageSelect"></select>
-        </label>
-        <label>
-          <span>Estado requerido</span>
-          <select id="milestoneSubmittalRequiredStatus">
-            <option value="A">A · Aprobado</option>
-            <option value="B">B</option>
-            <option value="C">C</option>
-            <option value="SUBMITTED">Enviado</option>
-          </select>
-        </label>
-        <label class="mechanical-checkbox-label">
-          <input id="milestoneSubmittalMandatory" type="checkbox" checked>
-          <span>Obligatorio / bloqueante</span>
-        </label>
-        <button id="saveMilestoneSubmittalLinkBtn" class="btn btn-primary" type="button">Asociar paquete</button>
+    <div class="milestone-selector-toolbar">
+      <input id="milestoneSubmittalSearch" type="search" placeholder="Buscar submittal…">
+      <button id="milestoneSelectAllVisibleBtn" class="btn btn-secondary btn-sm" type="button">Seleccionar visibles</button>
+      <button id="milestoneClearVisibleBtn" class="btn btn-secondary btn-sm" type="button">Quitar visibles</button>
+    </div>
+
+    <div id="milestoneSubmittalGroups" class="milestone-submittal-groups"></div>
+
+    <div class="milestone-selector-footer">
+      <div>
+        <strong id="milestoneSelectedCount">0</strong>
+        <span>submittals aplicables seleccionados</span>
+      </div>
+      <div class="modal-actions-right">
+        <button id="cancelMilestoneSubmittalBtn" class="btn btn-secondary" type="button">Cancelar</button>
+        <button id="saveMilestoneSubmittalLinksBtn" class="btn btn-primary" type="button">Guardar asociación</button>
       </div>
     </div>
   </div>
@@ -1106,6 +1165,6 @@ window.LEVITEC_CONFIG = {
 };
 </script>
 
-<script src="app.js?v=0.9.1"></script>
+<script src="app.js?v=0.10.0"></script>
 </body>
 </html>
