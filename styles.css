@@ -2252,3 +2252,146 @@ button{cursor:pointer}
   }
 }
 
+
+
+/* =========================================================
+   v0.10.1 · FIX MODAL SUBMITTAL
+   ========================================================= */
+
+.mechanical-submittal-modal{
+  width:min(920px,calc(100vw - 36px));
+  max-height:90vh;
+  overflow:auto;
+  padding:22px 24px 20px;
+}
+
+.mechanical-submittal-modal .modal-head{
+  margin-bottom:14px;
+  padding-bottom:14px;
+  border-bottom:1px solid var(--line);
+}
+
+.mechanical-submittal-modal .modal-head h2{
+  margin:4px 0 3px;
+  font-size:1.28rem;
+}
+
+.mechanical-submittal-modal .modal-sub{
+  margin:0;
+  font-size:.72rem;
+}
+
+.mechanical-submittal-modal .submittal-form-section{
+  margin-top:12px;
+  padding:16px 17px 17px;
+  background:#fbfcfc;
+}
+
+.mechanical-submittal-modal .mechanical-form-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:14px 16px;
+  align-items:start;
+}
+
+.mechanical-submittal-modal .mechanical-form-grid > label{
+  display:grid;
+  gap:6px;
+  min-width:0;
+}
+
+.mechanical-submittal-modal .mechanical-form-grid > label > span{
+  display:block;
+  font-size:.68rem;
+  font-weight:850;
+  color:#334b59;
+}
+
+.mechanical-submittal-modal input,
+.mechanical-submittal-modal select,
+.mechanical-submittal-modal textarea{
+  display:block;
+  width:100%;
+  min-width:0;
+  box-sizing:border-box;
+  border:1px solid #c9d6dc;
+  border-radius:10px;
+  background:#fff;
+  color:var(--ink);
+  font:inherit;
+  font-size:.78rem;
+  outline:none;
+  transition:border-color .15s ease, box-shadow .15s ease;
+}
+
+.mechanical-submittal-modal input,
+.mechanical-submittal-modal select{
+  height:42px;
+  padding:0 11px;
+}
+
+.mechanical-submittal-modal textarea{
+  min-height:92px;
+  resize:vertical;
+  padding:10px 11px;
+  line-height:1.4;
+}
+
+.mechanical-submittal-modal input:focus,
+.mechanical-submittal-modal select:focus,
+.mechanical-submittal-modal textarea:focus{
+  border-color:#4faeaa;
+  box-shadow:0 0 0 3px rgba(0,139,135,.10);
+}
+
+.mechanical-submittal-modal .span-2{
+  grid-column:1 / -1;
+}
+
+.mechanical-submittal-modal .submittal-form-section-head{
+  margin-bottom:15px;
+}
+
+.mechanical-submittal-modal .submittal-form-section-head > span{
+  flex:0 0 32px;
+  width:32px;
+  height:32px;
+}
+
+.mechanical-submittal-modal .submittal-form-section-head strong{
+  font-size:.78rem;
+}
+
+.mechanical-submittal-modal .submittal-form-section-head small{
+  font-size:.65rem;
+}
+
+.mechanical-submittal-modal .mechanical-modal-actions{
+  position:sticky;
+  bottom:-20px;
+  margin:16px -24px -20px;
+  padding:13px 24px;
+  background:#fff;
+  border-top:1px solid var(--line);
+  z-index:2;
+}
+
+@media(max-width:700px){
+  .mechanical-submittal-modal{
+    width:calc(100vw - 18px);
+    padding:18px 16px;
+  }
+
+  .mechanical-submittal-modal .mechanical-form-grid{
+    grid-template-columns:1fr;
+  }
+
+  .mechanical-submittal-modal .span-2{
+    grid-column:auto;
+  }
+
+  .mechanical-submittal-modal .mechanical-modal-actions{
+    margin:16px -16px -18px;
+    padding:12px 16px;
+  }
+}

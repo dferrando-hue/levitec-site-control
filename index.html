@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=0.10.0">
+  <link rel="stylesheet" href="styles.css?v=0.10.1">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -950,15 +950,10 @@
           </div>
         </div>
 
-        <div class="form-grid">
+        <div class="form-grid mechanical-form-grid">
           <label>
             <span>Subpaquete *</span>
             <select id="mechanicalSubmittalSubpackage" required></select>
-          </label>
-
-          <label id="mechanicalNewSubpackageWrap" class="hidden">
-            <span>Nuevo subpaquete *</span>
-            <input id="mechanicalNewSubpackage" type="text" placeholder="Ej. Fuel Controls">
           </label>
 
           <label>
@@ -966,7 +961,12 @@
             <input id="mechanicalSubmittalTrackerNumber" type="text" placeholder="Ej. 0006.03">
           </label>
 
-          <label>
+          <label id="mechanicalNewSubpackageWrap" class="span-2 hidden">
+            <span>Nuevo subpaquete *</span>
+            <input id="mechanicalNewSubpackage" type="text" placeholder="Ej. Fuel Controls">
+          </label>
+
+          <label class="span-2">
             <span>Nº técnico</span>
             <input id="mechanicalSubmittalTechnicalNumber" type="text" placeholder="ZAZ091-CAF-10-XX-SU-M-....">
           </label>
@@ -987,7 +987,7 @@
           </div>
         </div>
 
-        <div class="form-grid">
+        <div class="form-grid mechanical-form-grid">
           <label>
             <span>Estado</span>
             <select id="mechanicalSubmittalStatus">
@@ -1022,7 +1022,7 @@
           </div>
         </div>
 
-        <div class="form-grid">
+        <div class="form-grid mechanical-form-grid">
           <label>
             <span>Fecha planificada</span>
             <input id="mechanicalSubmittalPlannedDate" type="date">
@@ -1165,6 +1165,6 @@ window.LEVITEC_CONFIG = {
 };
 </script>
 
-<script src="app.js?v=0.10.0"></script>
+<script src="app.js?v=0.10.1"></script>
 </body>
 </html>
