@@ -2395,3 +2395,131 @@ button{cursor:pointer}
     padding:12px 16px;
   }
 }
+
+
+/* =========================================================
+   v0.11.0 · FoK cross-site
+   ========================================================= */
+
+.mechanical-fok-section{
+  margin-top:18px;
+  border:1px solid var(--line);
+  border-radius:18px;
+  background:#fff;
+  padding:18px;
+}
+
+.fok-cross-site-notice{
+  margin:0 0 14px;
+  padding:12px 14px;
+  border:1px solid #9fd7d2;
+  border-radius:12px;
+  background:#f1fbfa;
+  color:#315d5a;
+  font-size:.72rem;
+  line-height:1.45;
+}
+
+.fok-cross-site-notice strong{
+  color:#08746e;
+}
+
+.fok-chip{
+  display:inline-flex;
+  align-items:center;
+  white-space:nowrap;
+  padding:4px 8px;
+  border-radius:999px;
+  font-size:.61rem;
+  font-weight:850;
+}
+
+.doc-pending,
+.exec-not_planned{
+  background:#f0f2f3;
+  color:#61717b;
+}
+
+.doc-in_progress,
+.exec-planned{
+  background:#fff4dc;
+  color:#8b631c;
+}
+
+.doc-ready,
+.doc-copied,
+.exec-approved{
+  background:#e6f7f1;
+  color:#08745f;
+}
+
+.exec-inspected{
+  background:#e9f2ff;
+  color:#345d8c;
+}
+
+.exec-reinspection{
+  background:#ffe9e7;
+  color:#9d433c;
+}
+
+.fok-sibling-cell{
+  display:grid;
+  gap:6px;
+  align-items:start;
+}
+
+.fok-sibling-cell > span{
+  font-size:.65rem;
+  color:var(--muted);
+}
+
+.fok-gate{
+  border-top:1px solid var(--line);
+  background:#fbfcfc;
+}
+
+.fok-gate-body{
+  padding:0 20px 10px;
+}
+
+.fok-gate-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:15px;
+  padding:9px 0;
+  border-top:1px solid var(--line);
+}
+
+.fok-gate-row > div:first-child{
+  display:grid;
+  gap:2px;
+}
+
+.fok-gate-row strong{
+  font-size:.7rem;
+  color:var(--ink);
+}
+
+.fok-gate-row span{
+  font-size:.62rem;
+  color:var(--muted);
+}
+
+.fok-gate-status{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+@media(max-width:720px){
+  .fok-gate-row{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+  .fok-gate-status{
+    justify-content:flex-start;
+  }
+}

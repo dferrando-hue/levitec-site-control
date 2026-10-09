@@ -58,7 +58,12 @@ const state = {
     canEdit: false,
     selectedSubmittal: null,
     selectedMilestone: null,
-    milestoneDraftSelection: new Set()
+    milestoneDraftSelection: new Set(),
+    foks: [],
+    fokLinks: [],
+    selectedFok: null,
+    selectedFokMilestone: null,
+    fokDraftSelection: new Set()
   }
 };
 
@@ -353,6 +358,39 @@ const el = {
   milestoneSelectedCount: $('milestoneSelectedCount'),
   saveMilestoneSubmittalLinksBtn: $('saveMilestoneSubmittalLinksBtn'),
 
+  fokCrossSiteNotice: $('fokCrossSiteNotice'),
+  fokSearch: $('fokSearch'),
+  fokCategoryFilter: $('fokCategoryFilter'),
+  fokExecutionFilter: $('fokExecutionFilter'),
+  fokBody: $('fokBody'),
+
+  fokEditModal: $('fokEditModal'),
+  fokEditTitle: $('fokEditTitle'),
+  fokEditMeta: $('fokEditMeta'),
+  closeFokEditModalBtn: $('closeFokEditModalBtn'),
+  cancelFokEditBtn: $('cancelFokEditBtn'),
+  fokEditForm: $('fokEditForm'),
+  fokEditId: $('fokEditId'),
+  fokDocStatus: $('fokDocStatus'),
+  fokOwner: $('fokOwner'),
+  fokReportLink: $('fokReportLink'),
+  fokInspectionToolLink: $('fokInspectionToolLink'),
+  fokExecutionStatus: $('fokExecutionStatus'),
+  fokInspectionDate: $('fokInspectionDate'),
+  fokComments: $('fokComments'),
+
+  milestoneFokModal: $('milestoneFokModal'),
+  milestoneFokModalTitle: $('milestoneFokModalTitle'),
+  milestoneFokModalMeta: $('milestoneFokModalMeta'),
+  closeMilestoneFokModalBtn: $('closeMilestoneFokModalBtn'),
+  cancelMilestoneFokBtn: $('cancelMilestoneFokBtn'),
+  milestoneFokSearch: $('milestoneFokSearch'),
+  milestoneFokSelectAllBtn: $('milestoneFokSelectAllBtn'),
+  milestoneFokClearBtn: $('milestoneFokClearBtn'),
+  milestoneFokGroups: $('milestoneFokGroups'),
+  milestoneFokSelectedCount: $('milestoneFokSelectedCount'),
+  saveMilestoneFokBtn: $('saveMilestoneFokBtn'),
+
   backendForm: $('backendForm'),
   backendAction: $('backendAction'),
   backendCredential: $('backendCredential'),
@@ -519,6 +557,11 @@ window.addEventListener('message', event => {
     case 'mechanicalSubmittalSave':
     case 'mechanicalSubmittalDelete':
     case 'milestoneSubmittalLinksSaveBatch':
+      handleMechanicalMutation(msg.payload);
+      break;
+    case 'fokProjectSave':
+    case 'fokCopyDocumentation':
+    case 'milestoneFokLinksSaveBatch':
       handleMechanicalMutation(msg.payload);
       break;
 
@@ -780,6 +823,8 @@ function handleMechanicalReadiness(payload) {
   m.subpackages = Array.isArray(payload.subpackages) ? payload.subpackages : [];
   m.milestones = Array.isArray(payload.milestones) ? payload.milestones : [];
   m.links = Array.isArray(payload.links) ? payload.links : [];
+  m.foks = Array.isArray(payload.foks) ? payload.foks : [];
+  m.fokLinks = Array.isArray(payload.fokLinks) ? payload.fokLinks : [];
   m.canEdit = payload.canEdit === true;
 
   el.newMechanicalSubmittalBtn.classList.toggle('hidden', !m.canEdit);
@@ -789,6 +834,8 @@ function handleMechanicalReadiness(payload) {
   renderMechanicalReadiness();
   renderMechanicalSubpackages();
   renderMechanicalSubmittals();
+  populateFokFilters();
+  renderFokTracker();
   clearStatus(el.mechanicalStatus);
 }
 
@@ -815,6 +862,26 @@ function mechanicalSubmittalStatusLabel(status) {
   })[status] || status || 'Pendiente';
 }
 
+
+
+function fokDocStatusLabel(status) {
+  return ({
+    PENDING:'Pendiente',
+    IN_PROGRESS:'En preparación',
+    READY:'Lista',
+    COPIED:'Copiada'
+  })[status] || status || 'Pendiente';
+}
+
+function fokExecutionStatusLabel(status) {
+  return ({
+    NOT_PLANNED:'No planificado',
+    PLANNED:'Planificado',
+    INSPECTED:'Inspección realizada',
+    APPROVED:'Aprobado',
+    REINSPECTION:'Reinspección'
+  })[status] || status || 'No planificado';
+}
 
 function mechanicalDaysText(value) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
@@ -970,14 +1037,17 @@ function renderMechanicalReadiness() {
         ${groupsHtml}
       </div>
 
-      <div class="readiness-action ${r.blockers ? 'has-action' : 'no-action'}">
+      ${renderMilestoneFokGate(milestone)}
+
+      <div class="readiness-action ${(r.blockers || milestone.fokReadiness?.blockers) ? 'has-action' : 'no-action'}">
         <strong>Acción requerida</strong>
         <span>${
-          r.requiredSubmittals === 0
-            ? 'Seleccionar los submittals que deben estar aprobados antes de ejecutar este hito.'
-            : r.blockers > 0
-              ? `${r.blockers} submittal${r.blockers === 1 ? '' : 's'} debe${r.blockers === 1 ? '' : 'n'} alcanzar Estado A antes del hito.`
-              : 'Ninguna. Todos los submittals aplicables están en Estado A.'
+          (r.blockers || milestone.fokReadiness?.blockers)
+            ? [
+                r.blockers ? `${r.blockers} submittal${r.blockers === 1 ? '' : 's'} pendiente${r.blockers === 1 ? '' : 's'} de A` : '',
+                milestone.fokReadiness?.blockers ? `${milestone.fokReadiness.blockers} FoK pendiente${milestone.fokReadiness.blockers === 1 ? '' : 's'} de aprobación` : ''
+              ].filter(Boolean).join(' · ')
+            : 'Ninguna. Los condicionantes configurados para el hito están cumplidos.'
         }</span>
       </div>
     `;
@@ -988,6 +1058,8 @@ function renderMechanicalReadiness() {
 
     el.mechanicalReadinessGrid.appendChild(card);
   });
+
+  bindMilestoneFokButtons();
 }
 
 
@@ -1094,6 +1166,297 @@ function renderMechanicalSubmittals() {
     });
 
     el.mechanicalSubmittalBody.appendChild(tr);
+  });
+}
+
+
+
+function renderMilestoneFokGate(milestone) {
+  const r = milestone.fokReadiness || {
+    requiredFoks:0,
+    approvedFoks:0,
+    blockers:0,
+    docReuseAvailable:0,
+    readinessStatus:'NOT_CONFIGURED',
+    linkedFoks:[]
+  };
+
+  const rows = (r.linkedFoks || []).map(item => `
+    <div class="fok-gate-row">
+      <div>
+        <strong>${esc(item.fokId)} · ${esc(item.benchmarkName)}</strong>
+        <span>${esc(item.category || 'Mechanical')}</span>
+      </div>
+      <div class="fok-gate-status">
+        <span class="fok-chip doc-${String(item.docStatus || '').toLowerCase()}">${esc(fokDocStatusLabel(item.docStatus))}</span>
+        <span class="fok-chip exec-${String(item.executionStatus || '').toLowerCase()}">${esc(fokExecutionStatusLabel(item.executionStatus))}</span>
+      </div>
+    </div>
+  `).join('');
+
+  return `
+    <div class="fok-gate">
+      <div class="readiness-associated-head">
+        <div>
+          <strong>FoK requeridos antes del hito</strong>
+          <span>${r.approvedFoks}/${r.requiredFoks} aprobados${r.docReuseAvailable ? ` · ${r.docReuseAvailable} documentación reutilizable` : ''}</span>
+        </div>
+        ${state.mechanical.canEdit
+          ? `<button type="button" class="btn btn-secondary btn-sm fok-manage-btn" data-milestone="${esc(milestone.milestoneId)}">Definir FoK aplicables</button>`
+          : ''}
+      </div>
+      <div class="fok-gate-body">
+        ${rows || '<div class="readiness-no-packages">Sin FoK asociados a este hito.</div>'}
+      </div>
+    </div>
+  `;
+}
+
+
+function bindMilestoneFokButtons() {
+  el.mechanicalReadinessGrid.querySelectorAll('.fok-manage-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const milestone = state.mechanical.milestones.find(
+        x => x.milestoneId === btn.dataset.milestone
+      );
+      if (milestone) openMilestoneFokModal(milestone);
+    });
+  });
+}
+
+
+function populateFokFilters() {
+  const current = el.fokCategoryFilter.value;
+  const categories = [...new Set(
+    (state.mechanical.foks || []).map(x => x.category).filter(Boolean)
+  )].sort();
+
+  el.fokCategoryFilter.innerHTML =
+    '<option value="">Todas las categorías</option>' +
+    categories.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('');
+
+  if ([...el.fokCategoryFilter.options].some(o => o.value === current)) {
+    el.fokCategoryFilter.value = current;
+  }
+}
+
+
+function renderFokTracker() {
+  const q = el.fokSearch.value.trim().toLowerCase();
+  const category = el.fokCategoryFilter.value;
+  const execution = el.fokExecutionFilter.value;
+
+  const all = state.mechanical.foks || [];
+  const copyAvailable = all.filter(x => x.copyAvailable);
+
+  el.fokCrossSiteNotice.classList.toggle('hidden', !copyAvailable.length);
+  el.fokCrossSiteNotice.innerHTML = copyAvailable.length
+    ? `<strong>${copyAvailable.length} FoK con documentación disponible en el otro proyecto.</strong>
+       Puedes reutilizar la documentación sin marcar como realizada la inspección del proyecto actual.`
+    : '';
+
+  const rows = all.filter(item => {
+    if (category && item.category !== category) return false;
+    if (execution && item.executionStatus !== execution) return false;
+
+    if (q) {
+      const haystack = [
+        item.fokId,item.category,item.benchmarkName,item.doding,item.owner
+      ].join(' ').toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+
+    return true;
+  });
+
+  el.fokBody.innerHTML = '';
+
+  rows.forEach(item => {
+    const tr = document.createElement('tr');
+    const siblingText = item.siblingProject
+      ? `${item.siblingProject}: ${fokDocStatusLabel(item.siblingDocStatus)}`
+      : '—';
+
+    tr.innerHTML = `
+      <td>
+        <strong>${esc(item.fokId)} · ${esc(item.benchmarkName)}</strong>
+        <small>${esc(item.doding || '')}</small>
+      </td>
+      <td>${esc(item.category || '—')}</td>
+      <td><span class="fok-chip doc-${String(item.docStatus || '').toLowerCase()}">${esc(fokDocStatusLabel(item.docStatus))}</span></td>
+      <td><span class="fok-chip exec-${String(item.executionStatus || '').toLowerCase()}">${esc(fokExecutionStatusLabel(item.executionStatus))}</span></td>
+      <td>${esc(item.inspectionDate || '—')}</td>
+      <td>
+        <div class="fok-sibling-cell">
+          <span>${esc(siblingText)}</span>
+          ${item.copyAvailable
+            ? `<button type="button" class="btn btn-secondary btn-sm fok-copy-btn">Disponible en ${esc(item.siblingProject)} · Copiar</button>`
+            : ''}
+        </div>
+      </td>
+      <td>${state.mechanical.canEdit ? '<button type="button" class="btn btn-secondary btn-sm fok-edit-btn">Editar</button>' : ''}</td>
+    `;
+
+    tr.querySelector('.fok-edit-btn')?.addEventListener('click', () => openFokEditModal(item));
+    tr.querySelector('.fok-copy-btn')?.addEventListener('click', () => copyFokDocumentation(item));
+
+    el.fokBody.appendChild(tr);
+  });
+
+  if (!rows.length) {
+    el.fokBody.innerHTML = '<tr><td colspan="7"><div class="empty-state">No hay FoK que coincidan con los filtros.</div></td></tr>';
+  }
+}
+
+
+function openFokEditModal(item) {
+  state.mechanical.selectedFok = item;
+  el.fokEditId.value = item.fokId;
+  el.fokEditTitle.textContent = `${item.fokId} · ${item.benchmarkName}`;
+  el.fokEditMeta.textContent = `${item.category || 'Mechanical'} · ${state.currentProject.id}`;
+  el.fokDocStatus.value = item.docStatus || 'PENDING';
+  el.fokOwner.value = item.owner || '';
+  el.fokReportLink.value = item.reportLink || '';
+  el.fokInspectionToolLink.value = item.inspectionToolLink || '';
+  el.fokExecutionStatus.value = item.executionStatus || 'NOT_PLANNED';
+  el.fokInspectionDate.value = item.inspectionDate || '';
+  el.fokComments.value = item.comments || '';
+  el.fokEditModal.classList.remove('hidden');
+}
+
+
+function closeFokEditModal() {
+  el.fokEditModal.classList.add('hidden');
+  state.mechanical.selectedFok = null;
+}
+
+
+function submitFokEdit(event) {
+  event.preventDefault();
+  const item = state.mechanical.selectedFok;
+  if (!item || !state.currentProject) return;
+
+  postToBackend('fokProjectSave', {
+    projectId:state.currentProject.id,
+    fokId:item.fokId,
+    docStatus:el.fokDocStatus.value,
+    executionStatus:el.fokExecutionStatus.value,
+    owner:el.fokOwner.value,
+    inspectionDate:el.fokInspectionDate.value,
+    reportLink:el.fokReportLink.value,
+    comments:el.fokComments.value,
+    inspectionToolLink:el.fokInspectionToolLink.value
+  });
+}
+
+
+function copyFokDocumentation(item) {
+  if (!window.confirm(
+    `Copiar la documentación de ${item.fokId} desde ${item.siblingProject} a ${state.currentProject.id}?\n\nLa inspección y el estado de ejecución NO se copiarán.`
+  )) return;
+
+  postToBackend('fokCopyDocumentation', {
+    projectId:state.currentProject.id,
+    fokId:item.fokId
+  });
+}
+
+
+function openMilestoneFokModal(milestone) {
+  state.mechanical.selectedFokMilestone = milestone;
+  state.mechanical.fokDraftSelection = new Set(
+    (state.mechanical.fokLinks || [])
+      .filter(x => x.milestoneId === milestone.milestoneId)
+      .map(x => x.fokId)
+  );
+
+  el.milestoneFokModalTitle.textContent = milestone.title || 'Hito';
+  el.milestoneFokModalMeta.textContent = `${milestone.date || 'Sin fecha'} · ${state.currentProject.id}`;
+  el.milestoneFokSearch.value = '';
+  renderMilestoneFokSelector();
+  el.milestoneFokModal.classList.remove('hidden');
+}
+
+
+function closeMilestoneFokModal() {
+  el.milestoneFokModal.classList.add('hidden');
+  state.mechanical.selectedFokMilestone = null;
+  state.mechanical.fokDraftSelection = new Set();
+}
+
+
+function visibleMilestoneFoks() {
+  const q = el.milestoneFokSearch.value.trim().toLowerCase();
+  return (state.mechanical.foks || []).filter(item => {
+    if (!q) return true;
+    return [item.fokId,item.category,item.benchmarkName,item.doding]
+      .join(' ').toLowerCase().includes(q);
+  });
+}
+
+
+function renderMilestoneFokSelector() {
+  const items = visibleMilestoneFoks();
+  const selected = state.mechanical.fokDraftSelection;
+  const groups = {};
+
+  items.forEach(item => {
+    const key = item.category || 'General';
+    (groups[key] ||= []).push(item);
+  });
+
+  el.milestoneFokGroups.innerHTML = Object.keys(groups).sort().map(group => `
+    <section class="milestone-submittal-group">
+      <div class="milestone-submittal-group-head">
+        <div>
+          <strong>${esc(group)}</strong>
+          <span>${groups[group].filter(x => selected.has(x.fokId)).length}/${groups[group].length} seleccionados</span>
+        </div>
+      </div>
+      <div class="milestone-submittal-group-body">
+        ${groups[group].map(item => `
+          <label class="milestone-submittal-option">
+            <input type="checkbox" value="${esc(item.fokId)}" ${selected.has(item.fokId) ? 'checked' : ''}>
+            <span class="milestone-option-main">
+              <strong>${esc(item.fokId)} · ${esc(item.benchmarkName)}</strong>
+              <small>${esc(item.doding || 'Sin DoDing')}</small>
+            </span>
+            <span class="fok-chip exec-${String(item.executionStatus || '').toLowerCase()}">${esc(fokExecutionStatusLabel(item.executionStatus))}</span>
+          </label>
+        `).join('')}
+      </div>
+    </section>
+  `).join('');
+
+  el.milestoneFokGroups.querySelectorAll('input[type="checkbox"]').forEach(input => {
+    input.addEventListener('change', () => {
+      if (input.checked) selected.add(input.value);
+      else selected.delete(input.value);
+      el.milestoneFokSelectedCount.textContent = selected.size;
+    });
+  });
+
+  el.milestoneFokSelectedCount.textContent = selected.size;
+}
+
+
+function selectVisibleFoks(checked) {
+  visibleMilestoneFoks().forEach(item => {
+    if (checked) state.mechanical.fokDraftSelection.add(item.fokId);
+    else state.mechanical.fokDraftSelection.delete(item.fokId);
+  });
+  renderMilestoneFokSelector();
+}
+
+
+function saveMilestoneFokLinks() {
+  const milestone = state.mechanical.selectedFokMilestone;
+  if (!milestone || !state.currentProject) return;
+
+  postToBackend('milestoneFokLinksSaveBatch', {
+    projectId:state.currentProject.id,
+    milestoneId:milestone.milestoneId,
+    fokIds:[...state.mechanical.fokDraftSelection]
   });
 }
 
@@ -3520,6 +3883,24 @@ el.milestoneSubmittalSearch.addEventListener('input', renderMilestoneSubmittalSe
 el.milestoneSelectAllVisibleBtn.addEventListener('click', () => selectVisibleMilestoneSubmittals(true));
 el.milestoneClearVisibleBtn.addEventListener('click', () => selectVisibleMilestoneSubmittals(false));
 el.saveMilestoneSubmittalLinksBtn.addEventListener('click', saveMilestoneSubmittalLinks);
+
+
+el.fokSearch.addEventListener('input', renderFokTracker);
+el.fokCategoryFilter.addEventListener('change', renderFokTracker);
+el.fokExecutionFilter.addEventListener('change', renderFokTracker);
+
+el.closeFokEditModalBtn.addEventListener('click', closeFokEditModal);
+el.cancelFokEditBtn.addEventListener('click', closeFokEditModal);
+el.fokEditModal.querySelector('.modal-backdrop').addEventListener('click', closeFokEditModal);
+el.fokEditForm.addEventListener('submit', submitFokEdit);
+
+el.closeMilestoneFokModalBtn.addEventListener('click', closeMilestoneFokModal);
+el.cancelMilestoneFokBtn.addEventListener('click', closeMilestoneFokModal);
+el.milestoneFokModal.querySelector('.modal-backdrop').addEventListener('click', closeMilestoneFokModal);
+el.milestoneFokSearch.addEventListener('input', renderMilestoneFokSelector);
+el.milestoneFokSelectAllBtn.addEventListener('click', () => selectVisibleFoks(true));
+el.milestoneFokClearBtn.addEventListener('click', () => selectVisibleFoks(false));
+el.saveMilestoneFokBtn.addEventListener('click', saveMilestoneFokLinks);
 
 /* EVENTS */
 el.logoutBtn.addEventListener('click', logout);

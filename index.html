@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=0.10.1">
+  <link rel="stylesheet" href="styles.css?v=0.11.0">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -396,6 +396,50 @@
           </tr>
         </thead>
         <tbody id="mechanicalSubmittalBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="mechanical-fok-section">
+    <div class="mechanical-section-head">
+      <div>
+        <div class="eyebrow">FIRST OF A KIND · MECHANICAL</div>
+        <h2>Tracker de FoK</h2>
+        <p class="muted">Mismo catálogo para ZAZ081 y ZAZ091, con seguimiento independiente por proyecto.</p>
+      </div>
+    </div>
+
+    <div id="fokCrossSiteNotice" class="fok-cross-site-notice hidden"></div>
+
+    <div class="mechanical-submittal-filters">
+      <input id="fokSearch" type="search" placeholder="Buscar FoK, categoría o benchmark…">
+      <select id="fokCategoryFilter">
+        <option value="">Todas las categorías</option>
+      </select>
+      <select id="fokExecutionFilter">
+        <option value="">Todos los estados</option>
+        <option value="NOT_PLANNED">No planificado</option>
+        <option value="PLANNED">Planificado</option>
+        <option value="INSPECTED">Inspección realizada</option>
+        <option value="APPROVED">Aprobado</option>
+        <option value="REINSPECTION">Reinspección</option>
+      </select>
+    </div>
+
+    <div class="mechanical-package-table-wrap">
+      <table class="mechanical-package-table mechanical-submittal-table">
+        <thead>
+          <tr>
+            <th>FoK</th>
+            <th>Categoría</th>
+            <th>Documentación</th>
+            <th>Ejecución</th>
+            <th>Inspección</th>
+            <th>Otro site</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="fokBody"></tbody>
       </table>
     </div>
   </div>
@@ -1089,6 +1133,142 @@
   </div>
 </div>
 
+
+<div id="fokEditModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-card mechanical-submittal-modal">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">MECHANICAL · FIRST OF A KIND</div>
+        <h2 id="fokEditTitle">Editar FoK</h2>
+        <p id="fokEditMeta" class="muted modal-sub"></p>
+      </div>
+      <button id="closeFokEditModalBtn" class="icon-btn" type="button">×</button>
+    </div>
+
+    <form id="fokEditForm">
+      <input id="fokEditId" type="hidden">
+
+      <div class="submittal-form-section">
+        <div class="submittal-form-section-head">
+          <span>01</span>
+          <div>
+            <strong>Documentación</strong>
+            <small>Puede reutilizarse entre ZAZ081 y ZAZ091.</small>
+          </div>
+        </div>
+
+        <div class="form-grid mechanical-form-grid">
+          <label>
+            <span>Estado documental</span>
+            <select id="fokDocStatus">
+              <option value="PENDING">Pendiente</option>
+              <option value="IN_PROGRESS">En preparación</option>
+              <option value="READY">Lista</option>
+              <option value="COPIED">Copiada de otro proyecto</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Responsable</span>
+            <input id="fokOwner" type="text">
+          </label>
+
+          <label class="span-2">
+            <span>Report / Procore link</span>
+            <input id="fokReportLink" type="text">
+          </label>
+
+          <label class="span-2">
+            <span>Inspection Tool link</span>
+            <input id="fokInspectionToolLink" type="text">
+          </label>
+        </div>
+      </div>
+
+      <div class="submittal-form-section">
+        <div class="submittal-form-section-head">
+          <span>02</span>
+          <div>
+            <strong>Ejecución / inspección</strong>
+            <small>Siempre independiente para cada proyecto.</small>
+          </div>
+        </div>
+
+        <div class="form-grid mechanical-form-grid">
+          <label>
+            <span>Estado</span>
+            <select id="fokExecutionStatus">
+              <option value="NOT_PLANNED">No planificado</option>
+              <option value="PLANNED">Planificado</option>
+              <option value="INSPECTED">Inspección realizada</option>
+              <option value="APPROVED">Aprobado</option>
+              <option value="REINSPECTION">Reinspección</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Fecha de inspección</span>
+            <input id="fokInspectionDate" type="date">
+          </label>
+
+          <label class="span-2">
+            <span>Comentarios</span>
+            <textarea id="fokComments" rows="4"></textarea>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-actions mechanical-modal-actions">
+        <div></div>
+        <div class="modal-actions-right">
+          <button id="cancelFokEditBtn" class="btn btn-secondary" type="button">Cancelar</button>
+          <button class="btn btn-primary" type="submit">Guardar FoK</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<div id="milestoneFokModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-card milestone-submittal-selector-modal">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">MECHANICAL · FoK APLICABLES AL HITO</div>
+        <h2 id="milestoneFokModalTitle">Seleccionar FoK</h2>
+        <p id="milestoneFokModalMeta" class="muted modal-sub"></p>
+      </div>
+      <button id="closeMilestoneFokModalBtn" class="icon-btn" type="button">×</button>
+    </div>
+
+    <div class="milestone-selector-help">
+      Marca los FoK que deben estar <strong>APROBADOS</strong> antes de ejecutar este hito.
+    </div>
+
+    <div class="milestone-selector-toolbar">
+      <input id="milestoneFokSearch" type="search" placeholder="Buscar FoK…">
+      <button id="milestoneFokSelectAllBtn" class="btn btn-secondary btn-sm" type="button">Seleccionar visibles</button>
+      <button id="milestoneFokClearBtn" class="btn btn-secondary btn-sm" type="button">Quitar visibles</button>
+    </div>
+
+    <div id="milestoneFokGroups" class="milestone-submittal-groups"></div>
+
+    <div class="milestone-selector-footer">
+      <div>
+        <strong id="milestoneFokSelectedCount">0</strong>
+        <span>FoK seleccionados</span>
+      </div>
+      <div class="modal-actions-right">
+        <button id="cancelMilestoneFokBtn" class="btn btn-secondary" type="button">Cancelar</button>
+        <button id="saveMilestoneFokBtn" class="btn btn-primary" type="button">Guardar FoK del hito</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 <div id="deliveryModal" class="modal hidden">
   <div class="modal-backdrop"></div>
   <div class="modal-card modal-wide">
@@ -1165,6 +1345,6 @@ window.LEVITEC_CONFIG = {
 };
 </script>
 
-<script src="app.js?v=0.10.1"></script>
+<script src="app.js?v=0.11.0"></script>
 </body>
 </html>
