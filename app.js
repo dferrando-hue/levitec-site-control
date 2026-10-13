@@ -115,6 +115,8 @@ const el = {
   purchaseCountTotal: $('purchaseCountTotal'),
   purchaseCountPending: $('purchaseCountPending'),
   purchaseCountIssued: $('purchaseCountIssued'),
+  purchaseStatusFilter: $('purchaseStatusFilter'),
+  purchaseFilterCount: $('purchaseFilterCount'),
 
   projectModal: $('projectModal'),
   projectModalTitle: $('projectModalTitle'),
@@ -404,6 +406,7 @@ const ROLE_LABELS = {
   FOREMAN: 'Encargado',
   ENGINEER: 'Ingeniero',
   WAREHOUSE: 'Almacenero',
+  ADMINISTRATION: 'Administración',
   VIEWER: 'Consulta'
 };
 
@@ -2300,6 +2303,27 @@ function handlePurchaseList(payload) {
   });
 }
 
+
+function canManagePurchases() {
+  const role = state.bootstrap?.user?.role || '';
+  const permissions = Array.isArray(state.bootstrap?.permissions)
+    ? state.bootstrap.permissions
+    : [];
+
+  return (
+    ['ADMIN', 'PROJECT_MANAGER', 'SITE_MANAGER', 'ADMINISTRATION'].includes(role) ||
+    permissions.includes('PURCHASE_MANAGE')
+  );
+}
+
+
+function filteredPurchases() {
+  const status = el.purchaseStatusFilter.value;
+  if (!status) return state.purchases || [];
+  return (state.purchases || []).filter(item => item.status === status);
+}
+
+
 function renderPurchaseSummary() {
   const total = state.purchases.length;
   const pending = state.purchases.filter(x =>
@@ -2317,13 +2341,17 @@ function renderPurchaseSummary() {
 function renderPurchases() {
   el.purchaseList.innerHTML = '';
 
-  if (!state.purchases.length) {
+  const purchases = filteredPurchases();
+  el.purchaseFilterCount.textContent =
+    `${purchases.length} de ${state.purchases.length} solicitudes`;
+
+  if (!purchases.length) {
     el.purchaseList.innerHTML =
-      '<div class="empty-state"><h3>No hay solicitudes todavía</h3><p>Crea la primera solicitud de pedido para este proyecto.</p></div>';
+      '<div class="empty-state"><h3>Sin solicitudes</h3><p>No hay pedidos que coincidan con el filtro seleccionado.</p></div>';
     return;
   }
 
-  state.purchases.forEach(req => {
+  purchases.forEach(req => {
     const card = document.createElement('article');
     card.className = 'purchase-card';
 
@@ -2352,7 +2380,11 @@ function renderPurchases() {
         </div>
         <div class="purchase-card-head-actions">
           <span class="purchase-status-pill ${statusClass}">${esc(statusLabel)}</span>
-          <button class="btn btn-secondary btn-sm workflow-purchase-btn" type="button">Tramitar</button>
+          ${canManagePurchases()
+            ? req.status === 'CONFIRMADO_PROVEEDOR'
+              ? '<button class="btn btn-secondary btn-sm workflow-purchase-btn edit-mode" type="button">Editar</button>'
+              : '<button class="btn btn-secondary btn-sm workflow-purchase-btn" type="button">Tramitar</button>'
+            : ''}
           <button class="btn btn-secondary btn-sm reuse-purchase-btn" type="button">Reutilizar</button>
         </div>
       </div>
@@ -2384,7 +2416,7 @@ function renderPurchases() {
     `;
 
     card.querySelector('.workflow-purchase-btn')
-      .addEventListener('click', () => openPurchaseWorkflow(req));
+      ?.addEventListener('click', () => openPurchaseWorkflow(req));
 
     card.querySelector('.reuse-purchase-btn')
       .addEventListener('click', () => openPurchaseModal(req));
@@ -2424,6 +2456,7 @@ function openPurchaseWorkflow(req) {
 
   el.workflowFamilyInput.value = req.family || '';
   el.workflowStatusInput.value = req.status || 'PENDIENTE_ADMINISTRACION';
+  el.workflowStatusInput.disabled = req.status === 'CONFIRMADO_PROVEEDOR';
   el.workflowPoInput.value = req.poNumber || '';
   el.workflowExpectedDateInput.value = req.expectedDeliveryDate || '';
 
@@ -2467,6 +2500,7 @@ function openPurchaseWorkflow(req) {
 
 function closePurchaseWorkflow() {
   el.purchaseWorkflowModal.classList.add('hidden');
+  el.workflowStatusInput.disabled = false;
   state.workflowRequest = null;
   setWorkflowSubmitting(false);
 }
@@ -2474,9 +2508,15 @@ function closePurchaseWorkflow() {
 function setWorkflowSubmitting(value) {
   state.workflowSubmitting = value;
   el.saveWorkflowBtn.disabled = value;
+
+  const confirmed =
+    state.workflowRequest?.status === 'CONFIRMADO_PROVEEDOR';
+
   el.saveWorkflowBtn.textContent = value
     ? 'Guardando…'
-    : 'Guardar tramitación';
+    : confirmed
+      ? 'Guardar cambios'
+      : 'Guardar tramitación';
 }
 
 function savePurchaseWorkflow() {
@@ -2636,6 +2676,8 @@ function collectMaterials() {
       item.unitPrice
     );
 }
+
+el.purchaseStatusFilter.addEventListener('change', renderPurchases);
 
 el.purchaseForm.addEventListener('submit', event => {
   event.preventDefault();

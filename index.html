@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=0.11.0">
+  <link rel="stylesheet" href="styles.css?v=0.12.0">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -529,6 +529,21 @@
       <div><span>TOTAL</span><strong id="purchaseCountTotal">0</strong></div>
       <div><span>PENDIENTES</span><strong id="purchaseCountPending">0</strong></div>
       <div><span>EMITIDOS</span><strong id="purchaseCountIssued">0</strong></div>
+    </div>
+
+    <div class="purchase-list-toolbar">
+      <div>
+        <span class="purchase-filter-label">Estado</span>
+        <select id="purchaseStatusFilter">
+          <option value="">Todos los estados</option>
+          <option value="PENDIENTE_ADMINISTRACION">Pendiente administración</option>
+          <option value="EN_TRAMITACION">En tramitación</option>
+          <option value="PEDIDO_EMITIDO">Pedido emitido</option>
+          <option value="CONFIRMADO_PROVEEDOR">Confirmado proveedor</option>
+          <option value="CANCELADO">Cancelado</option>
+        </select>
+      </div>
+      <span id="purchaseFilterCount" class="purchase-filter-count"></span>
     </div>
 
     <div id="purchaseStatus" class="status hidden"></div>
@@ -1345,6 +1360,6 @@ window.LEVITEC_CONFIG = {
 };
 </script>
 
-<script src="app.js?v=0.11.0"></script>
+<script src="app.js?v=0.12.0"></script>
 </body>
 </html>
