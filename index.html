@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=0.12.0">
+  <link rel="stylesheet" href="styles.css?v=0.13.0">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -54,6 +54,37 @@
         Administración de plataforma
       </button>
     </div>
+
+    <section class="global-search-card">
+      <div class="global-search-head">
+        <div>
+          <div class="eyebrow">BUSCADOR GENERAL</div>
+          <h2>Localizar pedido o material</h2>
+          <p>Busca por nº de pedido, solicitud, referencia, descripción, proveedor o persona que realizó el pedido.</p>
+        </div>
+      </div>
+
+      <form id="globalPurchaseSearchForm" class="global-search-form">
+        <div class="global-search-input-wrap">
+          <span class="global-search-icon">⌕</span>
+          <input
+            id="globalPurchaseSearchInput"
+            type="search"
+            autocomplete="off"
+            placeholder="Ej. PCLVTC26-08498, REQ-ZAZ091-0019, BRC073, Waterloo…"
+          >
+        </div>
+        <button id="globalPurchaseSearchBtn" class="btn btn-primary" type="submit">
+          Buscar
+        </button>
+      </form>
+
+      <div id="globalPurchaseSearchHint" class="global-search-hint">
+        Busca en todos los proyectos a los que tienes acceso.
+      </div>
+      <div id="globalPurchaseSearchStatus" class="status hidden"></div>
+      <div id="globalPurchaseSearchResults" class="global-search-results hidden"></div>
+    </section>
 
     <div id="projectsGrid" class="projects-grid"></div>
 
@@ -1360,6 +1391,6 @@ window.LEVITEC_CONFIG = {
 };
 </script>
 
-<script src="app.js?v=0.12.0"></script>
+<script src="app.js?v=0.13.0"></script>
 </body>
 </html>

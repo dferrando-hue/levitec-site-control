@@ -9,6 +9,11 @@ const state = {
   currentProject: null,
   adminProjects: [],
   purchases: [],
+  globalPurchaseSearch: {
+    query: '',
+    results: [],
+    loading: false
+  },
   purchaseSuggestions: {
     suppliers: [],
     families: [],
@@ -93,6 +98,12 @@ const el = {
   projectsGrid: $('projectsGrid'),
   noProjects: $('noProjects'),
   globalAdminBtn: $('globalAdminBtn'),
+  globalPurchaseSearchForm: $('globalPurchaseSearchForm'),
+  globalPurchaseSearchInput: $('globalPurchaseSearchInput'),
+  globalPurchaseSearchBtn: $('globalPurchaseSearchBtn'),
+  globalPurchaseSearchHint: $('globalPurchaseSearchHint'),
+  globalPurchaseSearchStatus: $('globalPurchaseSearchStatus'),
+  globalPurchaseSearchResults: $('globalPurchaseSearchResults'),
 
   backProjectsBtn: $('backProjectsBtn'),
   currentProjectName: $('currentProjectName'),
@@ -528,6 +539,9 @@ window.addEventListener('message', event => {
     case 'purchaseList':
       handlePurchaseList(msg.payload);
       break;
+    case 'globalPurchaseSearch':
+      handleGlobalPurchaseSearch(msg.payload);
+      break;
 
     case 'purchaseSuggestions':
       handlePurchaseSuggestions(msg.payload);
@@ -675,6 +689,184 @@ function renderUser() {
 
   el.welcomeText.textContent =
     `${user.name || user.email} · ${role} · ${discipline}`;
+}
+
+
+
+/* GLOBAL PURCHASE SEARCH */
+function submitGlobalPurchaseSearch(event) {
+  if (event) event.preventDefault();
+
+  const query = el.globalPurchaseSearchInput.value.trim();
+
+  if (query.length < 2) {
+    setStatus(
+      el.globalPurchaseSearchStatus,
+      'Introduce al menos 2 caracteres para buscar.',
+      'error'
+    );
+    return;
+  }
+
+  state.globalPurchaseSearch.query = query;
+  state.globalPurchaseSearch.loading = true;
+
+  el.globalPurchaseSearchBtn.disabled = true;
+  el.globalPurchaseSearchBtn.textContent = 'Buscando…';
+  el.globalPurchaseSearchResults.classList.add('hidden');
+  clearStatus(el.globalPurchaseSearchStatus);
+
+  postToBackend('globalPurchaseSearch', {query:query});
+}
+
+
+function handleGlobalPurchaseSearch(payload) {
+  state.globalPurchaseSearch.loading = false;
+  el.globalPurchaseSearchBtn.disabled = false;
+  el.globalPurchaseSearchBtn.textContent = 'Buscar';
+
+  if (!payload || !payload.ok) {
+    setStatus(
+      el.globalPurchaseSearchStatus,
+      payload && payload.message
+        ? payload.message
+        : 'No se ha podido realizar la búsqueda.',
+      'error'
+    );
+    return;
+  }
+
+  state.globalPurchaseSearch.results =
+    Array.isArray(payload.results) ? payload.results : [];
+
+  clearStatus(el.globalPurchaseSearchStatus);
+  renderGlobalPurchaseSearchResults(
+    payload.query || state.globalPurchaseSearch.query
+  );
+}
+
+
+function generalPurchaseStatusLabel(status) {
+  return ({
+    PENDIENTE_ADMINISTRACION:'Pendiente administración',
+    EN_TRAMITACION:'En tramitación',
+    PEDIDO_EMITIDO:'Pedido emitido',
+    CONFIRMADO_PROVEEDOR:'Confirmado proveedor',
+    CANCELADO:'Cancelado'
+  })[status] || status || 'Sin estado';
+}
+
+
+function renderGlobalPurchaseSearchResults(query) {
+  const results = state.globalPurchaseSearch.results || [];
+  el.globalPurchaseSearchResults.classList.remove('hidden');
+
+  if (!results.length) {
+    el.globalPurchaseSearchResults.innerHTML = `
+      <div class="global-search-empty">
+        <strong>Sin resultados</strong>
+        <span>No se ha encontrado ningún pedido o material para “${esc(query)}” dentro de tus proyectos.</span>
+      </div>`;
+    return;
+  }
+
+  el.globalPurchaseSearchResults.innerHTML = `
+    <div class="global-search-results-head">
+      <strong>${results.length} resultado${results.length === 1 ? '' : 's'}</strong>
+      <span>Consulta transversal de pedidos</span>
+    </div>
+    <div class="global-search-result-list"></div>
+  `;
+
+  const list = el.globalPurchaseSearchResults.querySelector(
+    '.global-search-result-list'
+  );
+
+  results.forEach(req => {
+    const card = document.createElement('article');
+    card.className = 'global-search-result-card';
+
+    const materials = Array.isArray(req.materials) ? req.materials : [];
+    const materialsHtml = materials.length
+      ? materials.slice(0, 8).map(item => `
+          <div class="global-search-material-row">
+            <strong>${esc(item.reference || '—')}</strong>
+            <span>${esc(item.description || '')}</span>
+            <span class="global-search-material-qty">${esc(item.quantity || '—')}</span>
+          </div>
+        `).join('')
+      : '<div class="global-search-no-materials">Sin líneas de material.</div>';
+
+    card.innerHTML = `
+      <div class="global-search-result-top">
+        <div>
+          <div class="global-search-po">${esc(req.poNumber || 'PO pendiente')}</div>
+          <h3>${esc(req.requestId || 'Solicitud')}</h3>
+        </div>
+        <span class="purchase-status-pill status-${String(req.status || '').toLowerCase()}">
+          ${esc(generalPurchaseStatusLabel(req.status))}
+        </span>
+      </div>
+
+      <div class="global-search-project-band">
+        <div>
+          <span>PROYECTO</span>
+          <strong>${esc(req.projectId)} · ${esc(req.projectName || req.projectId)}</strong>
+          <small>${esc(req.campus || '')}</small>
+        </div>
+        <div>
+          <span>PEDIDO REALIZADO POR</span>
+          <strong>${esc(req.creatorName || req.createdBy || '—')}</strong>
+          <small>${esc(req.createdBy || '')}</small>
+        </div>
+      </div>
+
+      <div class="global-search-meta-grid">
+        <div><span>Proveedor</span><strong>${esc(req.supplier || '—')}</strong></div>
+        <div><span>Destino</span><strong>${esc(req.destination || req.destinationType || '—')}</strong></div>
+        <div><span>Fecha requerida</span><strong>${esc(req.requiredDate || '—')}</strong></div>
+        <div><span>Fecha prevista</span><strong>${esc(req.expectedDeliveryDate || '—')}</strong></div>
+      </div>
+
+      <div class="global-search-materials">
+        <div class="global-search-materials-head">
+          <strong>Materiales</strong>
+          <span>${materials.length} línea${materials.length === 1 ? '' : 's'}</span>
+        </div>
+        ${materialsHtml}
+        ${materials.length > 8
+          ? `<div class="global-search-more">+ ${materials.length - 8} líneas adicionales</div>`
+          : ''}
+      </div>
+
+      ${req.notes
+        ? `<div class="global-search-notes">${esc(req.notes)}</div>`
+        : ''}
+
+      <div class="global-search-result-actions">
+        <button class="btn btn-secondary btn-sm global-open-project-btn" type="button">
+          Abrir ${esc(req.projectId)}
+        </button>
+      </div>
+    `;
+
+    card.querySelector('.global-open-project-btn')
+      ?.addEventListener('click', () => {
+        const project = (state.bootstrap.projects || []).find(
+          p => p.id === req.projectId
+        );
+
+        if (!project) return;
+
+        openProject(project);
+
+        if (state.bootstrap.modules && state.bootstrap.modules.purchases === true) {
+          openPurchases();
+        }
+      });
+
+    list.appendChild(card);
+  });
 }
 
 
@@ -3948,6 +4140,7 @@ el.saveMilestoneFokBtn.addEventListener('click', saveMilestoneFokLinks);
 el.logoutBtn.addEventListener('click', logout);
 el.backProjectsBtn.addEventListener('click', () => show(el.projectsView));
 el.globalAdminBtn.addEventListener('click', openGlobalAdmin);
+el.globalPurchaseSearchForm.addEventListener('submit', submitGlobalPurchaseSearch);
 el.backFromGlobalAdminBtn.addEventListener('click', () => show(el.projectsView));
 el.newProjectBtn.addEventListener('click', () => openProjectModal('create', null));
 el.closeProjectModalBtn.addEventListener('click', closeProjectModal);
