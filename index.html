@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=0.13.0">
+  <link rel="stylesheet" href="styles.css?v=0.14.0">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -710,6 +710,14 @@
         <textarea id="purchaseNotes" rows="4" placeholder="Sustituciones, notas al proveedor, condiciones especiales..."></textarea>
       </label>
 
+      <label class="purchase-quote-upload">
+        <span>Adjuntar oferta PDF <small>(opcional)</small></span>
+        <input id="purchaseQuotePdf" type="file" accept="application/pdf,.pdf">
+        <small class="purchase-quote-help">
+          Se enviará al administrativo junto con la solicitud. No se guardará en Site Control ni en Drive.
+        </small>
+      </label>
+
       <details class="advanced-fields">
         <summary>Datos adicionales</summary>
 
@@ -1391,6 +1399,6 @@ window.LEVITEC_CONFIG = {
 };
 </script>
 
-<script src="app.js?v=0.13.0"></script>
+<script src="app.js?v=0.14.0"></script>
 </body>
 </html>

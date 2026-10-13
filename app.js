@@ -150,6 +150,7 @@ const el = {
   purchaseFamily: $('purchaseFamily'),
   purchaseRequiredDate: $('purchaseRequiredDate'),
   purchaseQuoteRef: $('purchaseQuoteRef'),
+  purchaseQuotePdf: $('purchaseQuotePdf'),
   purchaseDestinationType: $('purchaseDestinationType'),
   purchaseDestination: $('purchaseDestination'),
   purchaseAddress: $('purchaseAddress'),
@@ -2871,30 +2872,77 @@ function collectMaterials() {
 
 el.purchaseStatusFilter.addEventListener('change', renderPurchases);
 
-el.purchaseForm.addEventListener('submit', event => {
+async function getPurchaseQuotePdfPayload() {
+  const file = el.purchaseQuotePdf && el.purchaseQuotePdf.files
+    ? el.purchaseQuotePdf.files[0]
+    : null;
+
+  if (!file) return null;
+
+  if (file.type && file.type !== 'application/pdf') {
+    throw new Error('La oferta adjunta debe ser un archivo PDF.');
+  }
+
+  const maxBytes = 8 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    throw new Error('La oferta PDF supera 8 MB. Reduce el archivo antes de adjuntarlo.');
+  }
+
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('No se ha podido leer la oferta PDF.'));
+    reader.readAsDataURL(file);
+  });
+
+  return {
+    name: file.name || 'oferta.pdf',
+    mimeType: 'application/pdf',
+    base64: String(dataUrl || '').split(',')[1] || ''
+  };
+}
+
+el.purchaseForm.addEventListener('submit', async event => {
   event.preventDefault();
 
   if (!state.currentProject || state.purchaseSubmitting) return;
 
-  const payload = {
-    clientRequestId: el.purchaseClientRequestId.value || newClientRequestId(),
-    projectId: state.currentProject.id,
-    supplier: el.purchaseSupplier.value,
-    family: el.purchaseFamily.value,
-    requiredDate: el.purchaseRequiredDate.value,
-    quoteRef: el.purchaseQuoteRef.value,
-    destinationType: el.purchaseDestinationType.value,
-    destination: el.purchaseDestination.value,
-    deliveryAddress: el.purchaseAddress.value,
-    siteContact: el.purchaseContact.value,
-    notes: el.purchaseNotes.value,
-    materials: collectMaterials()
-  };
+  try {
+    const quotePdf = await getPurchaseQuotePdfPayload();
 
-  setPurchaseSubmitting(true);
-  setStatus(el.purchaseStatus, 'Creando solicitud…');
+    const payload = {
+      clientRequestId: el.purchaseClientRequestId.value || newClientRequestId(),
+      projectId: state.currentProject.id,
+      supplier: el.purchaseSupplier.value,
+      family: el.purchaseFamily.value,
+      requiredDate: el.purchaseRequiredDate.value,
+      quoteRef: el.purchaseQuoteRef.value,
+      destinationType: el.purchaseDestinationType.value,
+      destination: el.purchaseDestination.value,
+      deliveryAddress: el.purchaseAddress.value,
+      siteContact: el.purchaseContact.value,
+      notes: el.purchaseNotes.value,
+      materials: collectMaterials(),
+      quotePdf: quotePdf
+    };
 
-  postToBackend('purchaseCreate', payload);
+    setPurchaseSubmitting(true);
+    setStatus(
+      el.purchaseStatus,
+      quotePdf
+        ? 'Creando solicitud y enviando oferta al administrativo…'
+        : 'Creando solicitud y notificando al administrativo…'
+    );
+
+    postToBackend('purchaseCreate', payload);
+  } catch (error) {
+    setPurchaseSubmitting(false);
+    setStatus(
+      el.purchaseStatus,
+      error && error.message ? error.message : 'No se ha podido preparar la oferta PDF.',
+      'error'
+    );
+  }
 });
 
 function handlePurchaseMutation(payload) {
@@ -2906,9 +2954,14 @@ function handlePurchaseMutation(payload) {
     return;
   }
 
+  if (el.purchaseQuotePdf) el.purchaseQuotePdf.value = '';
   closePurchaseModal();
   closePurchaseWorkflow();
-  setStatus(el.purchaseStatus, payload.message || 'Guardado correctamente.', 'success');
+  setStatus(
+    el.purchaseStatus,
+    payload.message || 'Guardado correctamente.',
+    payload.emailSent === false ? 'error' : 'success'
+  );
 
   postToBackend('purchaseList', {
     projectId: state.currentProject.id

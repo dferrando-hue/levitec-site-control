@@ -2870,3 +2870,35 @@ button{cursor:pointer}
     grid-template-columns:1fr;
   }
 }
+
+
+/* v0.14.0 · oferta PDF efímera */
+.purchase-quote-upload{
+  display:grid;
+  gap:6px;
+  margin-top:14px;
+  padding:12px 13px;
+  border:1px dashed #b8d0d2;
+  border-radius:11px;
+  background:#f8fbfb;
+}
+.purchase-quote-upload > span{
+  font-size:.72rem;
+  font-weight:800;
+  color:var(--ink);
+}
+.purchase-quote-upload > span small{
+  font-weight:500;
+  color:var(--muted);
+}
+.purchase-quote-upload input[type="file"]{
+  width:100%;
+  box-sizing:border-box;
+  font:inherit;
+  font-size:.7rem;
+}
+.purchase-quote-help{
+  color:var(--muted);
+  font-size:.62rem;
+  line-height:1.4;
+}
