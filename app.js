@@ -20,6 +20,8 @@ const state = {
     destinations: [],
     materials: []
   },
+  purchaseSuggestionsLoadedAt: 0,
+  purchaseSuggestionsProjectId: '',
   purchaseSubmitting: false,
   pendingPurchaseQuotePdf: null,
   pendingPurchaseQuoteFile: null,
@@ -2401,6 +2403,8 @@ function handlePurchaseSuggestions(payload) {
     materials: Array.isArray(payload.materials) ? payload.materials : []
   };
 
+  state.purchaseSuggestionsLoadedAt = Date.now();
+  state.purchaseSuggestionsProjectId = state.currentProject?.id || '';
   renderPurchaseSuggestions();
 }
 
@@ -2507,11 +2511,16 @@ function handlePurchaseList(payload) {
   renderPurchaseSummary();
   renderPurchases();
 
-  // Cargamos sugerencias SOLO después de haber recibido
-  // y pintado correctamente el listado.
-  postToBackend('purchaseSuggestions', {
-    projectId: state.currentProject.id
-  });
+  // v0.18: no repetir una lectura completa del histórico tras cada
+  // actualización de pedido, aviso por email o reapertura del módulo.
+  const suggestionsFresh =
+    state.purchaseSuggestionsProjectId === state.currentProject?.id &&
+    Date.now() - state.purchaseSuggestionsLoadedAt < 5 * 60 * 1000;
+  if (!suggestionsFresh && state.currentProject) {
+    postToBackend('purchaseSuggestions', {
+      projectId: state.currentProject.id
+    });
+  }
 }
 
 
@@ -3039,6 +3048,7 @@ async function handlePurchaseCreate(payload) {
   }
   if (el.purchaseQuotePdf) el.purchaseQuotePdf.value = '';
   closePurchaseModal();
+  state.purchaseSuggestionsLoadedAt = 0;
   state.pendingPurchaseNotification = {
     requestId: payload.requestId,
     quotePdf: null
