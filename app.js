@@ -145,6 +145,7 @@ const el = {
   projectActiveInput: $('projectActiveInput'),
 
   purchaseModal: $('purchaseModal'),
+  purchaseModalStatus: $('purchaseModalStatus'),
   closePurchaseModalBtn: $('closePurchaseModalBtn'),
   cancelPurchaseBtn: $('cancelPurchaseBtn'),
   purchaseForm: $('purchaseForm'),
@@ -2812,9 +2813,17 @@ function savePurchaseWorkflow() {
 }
 
 function openPurchaseModal(sourceRequest=null) {
-  if (!state.currentProject) return;
+  if (!state.currentProject || state.purchaseSubmitting || state.pendingPurchaseNotification) {
+    if (state.purchaseSubmitting) {
+      setStatus(el.purchaseStatus, 'Hay una solicitud guardándose. Espera a recibir la confirmación antes de crear otra.', 'info');
+    } else if (state.pendingPurchaseNotification) {
+      setStatus(el.purchaseStatus, 'Hay una notificación pendiente. Reintenta el envío antes de crear otra solicitud.', 'error');
+    }
+    return;
+  }
 
   el.purchaseForm.reset();
+  clearStatus(el.purchaseModalStatus);
   el.materialsRows.innerHTML = '';
   el.purchaseClientRequestId.value = newClientRequestId();
 
@@ -2850,7 +2859,12 @@ function openPurchaseModal(sourceRequest=null) {
 }
 
 function closePurchaseModal() {
+  if (state.purchaseSubmitting) {
+    setStatus(el.purchaseModalStatus, 'La solicitud sigue guardándose. Espera a recibir la confirmación para evitar duplicados.', 'info');
+    return;
+  }
   el.purchaseModal.classList.add('hidden');
+  clearStatus(el.purchaseModalStatus);
 }
 
 function addMaterialRow(source=null) {
@@ -2998,11 +3012,13 @@ el.purchaseForm.addEventListener('submit', async event => {
     state.pendingPurchaseQuoteFile = quoteFile;
     state.pendingPurchaseQuotePdf = null;
     setPurchaseSubmitting(true);
+    setStatus(el.purchaseModalStatus, 'Guardando solicitud… No vuelvas a pulsar Crear solicitud.', 'info');
     setStatus(el.purchaseStatus, 'Guardando solicitud…');
 
     postToBackend('purchaseCreate', payload);
   } catch (error) {
     setPurchaseSubmitting(false);
+    setStatus(el.purchaseModalStatus, error?.message || 'No se ha podido preparar la solicitud.', 'error');
     setStatus(
       el.purchaseStatus,
       error && error.message ? error.message : 'No se ha podido preparar la oferta PDF.',
@@ -3016,7 +3032,9 @@ async function handlePurchaseCreate(payload) {
   if (!payload?.ok) {
     state.pendingPurchaseQuotePdf = null;
     state.pendingPurchaseQuoteFile = null;
-    setStatus(el.purchaseStatus, payload?.message || 'No se ha podido crear la solicitud.', 'error');
+    const errorMessage = payload?.message || 'No se ha podido crear la solicitud.';
+    setStatus(el.purchaseModalStatus, errorMessage, 'error');
+    setStatus(el.purchaseStatus, errorMessage, 'error');
     return;
   }
   if (el.purchaseQuotePdf) el.purchaseQuotePdf.value = '';
