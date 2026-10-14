@@ -21,6 +21,10 @@ const state = {
     materials: []
   },
   purchaseSubmitting: false,
+  pendingPurchaseQuotePdf: null,
+  pendingPurchaseQuoteFile: null,
+  pendingPurchaseNotification: null,
+  purchaseNotice: null,
   workflowRequest: null,
   workflowSubmitting: false,
   deliveries: [],
@@ -549,11 +553,19 @@ window.addEventListener('message', event => {
       break;
 
     case 'purchaseCreate':
-      handlePurchaseMutation(msg.payload);
+      handlePurchaseCreate(msg.payload);
+      break;
+
+    case 'purchaseNotify':
+      handlePurchaseNotify(msg.payload);
       break;
 
     case 'purchaseUpdateStatus':
       handlePurchaseMutation(msg.payload);
+      break;
+
+    case 'purchaseStartProcessing':
+      handlePurchaseStartProcessing(msg.payload);
       break;
 
     case 'deliveryList':
@@ -898,7 +910,6 @@ function renderProjects() {
           <h2>${esc(project.name || project.id)}</h2>
           <div class="project-campus">${esc(project.campus || '')}</div>
         </div>
-        <div class="project-chip">ACTIVO</div>
       </div>
 
       <div class="project-role">${esc(role)}</div>
@@ -2485,7 +2496,13 @@ function handlePurchaseList(payload) {
 
   state.purchases = Array.isArray(payload.requests) ? payload.requests : [];
 
-  clearStatus(el.purchaseStatus);
+  if (state.purchaseNotice) {
+    setStatus(el.purchaseStatus, state.purchaseNotice,
+      state.purchaseNotice.includes('reintentar') ? 'error' :
+      state.purchaseNotice.includes('Enviando') ? undefined : 'success');
+  } else {
+    clearStatus(el.purchaseStatus);
+  }
   renderPurchaseSummary();
   renderPurchases();
 
@@ -2574,14 +2591,29 @@ function renderPurchases() {
         <div class="purchase-card-head-actions">
           <span class="purchase-status-pill ${statusClass}">${esc(statusLabel)}</span>
           ${canManagePurchases()
-            ? req.status === 'CONFIRMADO_PROVEEDOR'
-              ? '<button class="btn btn-secondary btn-sm workflow-purchase-btn edit-mode" type="button">Editar</button>'
-              : '<button class="btn btn-secondary btn-sm workflow-purchase-btn" type="button">Tramitar</button>'
+            ? req.status === 'PENDIENTE_ADMINISTRACION'
+              ? '<button class="btn btn-primary btn-sm start-purchase-btn" type="button">Iniciar tramitación</button>'
+              : ['EN_TRAMITACION', 'PEDIDO_EMITIDO', 'CONFIRMADO_PROVEEDOR'].includes(req.status)
+                ? '<button class="btn btn-secondary btn-sm workflow-purchase-btn edit-mode" type="button">Editar</button>'
+                : ''
             : ''}
           <button class="btn btn-secondary btn-sm reuse-purchase-btn" type="button">Reutilizar</button>
         </div>
       </div>
 
+      ${['PENDIENTE', 'ERROR'].includes(req.emailStatus) ? `
+        <div class="purchase-processing-info" style="background:#fff5e8;border-color:#f0d7b4">
+          <strong>Correo a Administración: ${req.emailStatus === 'ERROR' ? 'error de envío' : 'pendiente de envío'}</strong>
+          <span>La solicitud está registrada, pero no consta confirmación de envío.</span>
+        </div>
+      ` : ''}
+      ${req.processingBy ? `
+        <div class="purchase-processing-info">
+          <span>Tramitación iniciada por</span>
+          <strong>${esc(req.processingByName || req.processingBy)}</strong>
+          <small>${esc(req.processingStartedAt || '')}</small>
+        </div>
+      ` : ''}
       <div class="purchase-card-body">
         <div class="data-pair"><span>Familia</span><strong>${esc(req.family || '—')}</strong></div>
         <div class="data-pair"><span>Fecha requerida</span><strong>${esc(req.requiredDate || '—')}</strong></div>
@@ -2607,6 +2639,16 @@ function renderPurchases() {
 
       ${req.notes ? `<div class="purchase-notes">${esc(req.notes)}</div>` : ''}
     `;
+
+    card.querySelector('.start-purchase-btn')
+      ?.addEventListener('click', event => {
+        const button = event.currentTarget;
+        if (button.disabled) return;
+        button.disabled = true;
+        button.textContent = 'Registrando…';
+        setStatus(el.purchaseStatus, 'Marcando solicitud en tramitación…');
+        postToBackend('purchaseStartProcessing', {requestId: req.requestId});
+      });
 
     card.querySelector('.workflow-purchase-btn')
       ?.addEventListener('click', () => openPurchaseWorkflow(req));
@@ -2649,6 +2691,8 @@ function openPurchaseWorkflow(req) {
 
   el.workflowFamilyInput.value = req.family || '';
   el.workflowStatusInput.value = req.status || 'PENDIENTE_ADMINISTRACION';
+  el.workflowStatusInput.querySelector('option[value="PENDIENTE_ADMINISTRACION"]').disabled =
+    req.status !== 'PENDIENTE_ADMINISTRACION';
   el.workflowStatusInput.disabled = req.status === 'CONFIRMADO_PROVEEDOR';
   el.workflowPoInput.value = req.poNumber || '';
   el.workflowExpectedDateInput.value = req.expectedDeliveryDate || '';
@@ -2871,11 +2915,27 @@ function collectMaterials() {
 }
 
 el.purchaseStatusFilter.addEventListener('change', renderPurchases);
+document.getElementById('purchaseRetryEmail')?.addEventListener('click', async () => {
+  if (!state.pendingPurchaseNotification) return;
+  try {
+    if (!state.pendingPurchaseNotification.quotePdf && state.pendingPurchaseQuoteFile) {
+      state.pendingPurchaseNotification.quotePdf =
+        await getPurchaseQuotePdfPayload(state.pendingPurchaseQuoteFile);
+    }
+  } catch (error) {
+    setStatus(el.purchaseStatus, error?.message || 'Error al preparar PDF.', 'error');
+    return;
+  }
+  document.getElementById('purchaseRetryEmail').classList.add('hidden');
+  state.purchaseNotice = 'Reintentando notificación a Administración…';
+  setStatus(el.purchaseStatus, state.purchaseNotice);
+  postToBackend('purchaseNotify', state.pendingPurchaseNotification);
+});
 
-async function getPurchaseQuotePdfPayload() {
-  const file = el.purchaseQuotePdf && el.purchaseQuotePdf.files
+async function getPurchaseQuotePdfPayload(fileOverride) {
+  const file = fileOverride || (el.purchaseQuotePdf && el.purchaseQuotePdf.files
     ? el.purchaseQuotePdf.files[0]
-    : null;
+    : null);
 
   if (!file) return null;
 
@@ -2905,10 +2965,19 @@ async function getPurchaseQuotePdfPayload() {
 el.purchaseForm.addEventListener('submit', async event => {
   event.preventDefault();
 
-  if (!state.currentProject || state.purchaseSubmitting) return;
+  if (!state.currentProject || state.purchaseSubmitting || state.pendingPurchaseNotification) {
+    setStatus(el.purchaseStatus, 'Hay una notificación pendiente. Termina o reintenta su envío antes de crear otra solicitud.', 'error');
+    return;
+  }
 
   try {
-    const quotePdf = await getPurchaseQuotePdfPayload();
+    const quoteFile = el.purchaseQuotePdf?.files?.[0] || null;
+    if (quoteFile && quoteFile.type && quoteFile.type !== 'application/pdf') {
+      throw new Error('La oferta debe ser PDF.');
+    }
+    if (quoteFile && quoteFile.size > 8 * 1024 * 1024) {
+      throw new Error('La oferta PDF supera 8 MB.');
+    }
 
     const payload = {
       clientRequestId: el.purchaseClientRequestId.value || newClientRequestId(),
@@ -2923,16 +2992,13 @@ el.purchaseForm.addEventListener('submit', async event => {
       siteContact: el.purchaseContact.value,
       notes: el.purchaseNotes.value,
       materials: collectMaterials(),
-      quotePdf: quotePdf
+      quotePdf: null
     };
 
+    state.pendingPurchaseQuoteFile = quoteFile;
+    state.pendingPurchaseQuotePdf = null;
     setPurchaseSubmitting(true);
-    setStatus(
-      el.purchaseStatus,
-      quotePdf
-        ? 'Creando solicitud y enviando oferta al administrativo…'
-        : 'Creando solicitud y notificando al administrativo…'
-    );
+    setStatus(el.purchaseStatus, 'Guardando solicitud…');
 
     postToBackend('purchaseCreate', payload);
   } catch (error) {
@@ -2944,6 +3010,62 @@ el.purchaseForm.addEventListener('submit', async event => {
     );
   }
 });
+
+async function handlePurchaseCreate(payload) {
+  setPurchaseSubmitting(false);
+  if (!payload?.ok) {
+    state.pendingPurchaseQuotePdf = null;
+    state.pendingPurchaseQuoteFile = null;
+    setStatus(el.purchaseStatus, payload?.message || 'No se ha podido crear la solicitud.', 'error');
+    return;
+  }
+  if (el.purchaseQuotePdf) el.purchaseQuotePdf.value = '';
+  closePurchaseModal();
+  state.pendingPurchaseNotification = {
+    requestId: payload.requestId,
+    quotePdf: null
+  };
+  state.purchaseNotice = 'Solicitud ' + payload.requestId +
+    ' guardada. Enviando correo a Administración… No cierres la página hasta confirmar el envío.';
+  setStatus(el.purchaseStatus, state.purchaseNotice);
+  document.getElementById('purchaseRetryEmail')?.classList.add('hidden');
+  try {
+    state.pendingPurchaseQuotePdf = await getPurchaseQuotePdfPayload(state.pendingPurchaseQuoteFile);
+    state.pendingPurchaseNotification.quotePdf = state.pendingPurchaseQuotePdf;
+    postToBackend('purchaseNotify', state.pendingPurchaseNotification);
+  } catch (error) {
+    state.purchaseNotice = 'Solicitud guardada, pero no se pudo preparar el PDF: ' +
+      (error?.message || String(error)) + '. Puedes reintentar el envío.';
+    setStatus(el.purchaseStatus, state.purchaseNotice, 'error');
+    document.getElementById('purchaseRetryEmail')?.classList.remove('hidden');
+  }
+}
+
+function handlePurchaseNotify(payload) {
+  if (payload?.ok) {
+    state.pendingPurchaseNotification = null;
+    state.pendingPurchaseQuotePdf = null;
+    state.pendingPurchaseQuoteFile = null;
+    state.purchaseNotice = payload.message || 'Correo enviado a Administración.';
+  } else {
+    state.purchaseNotice = (payload?.message || 'Error al enviar el correo.') +
+      ' La solicitud está guardada. Puedes reintentar el envío sin crear otra.';
+  }
+  setStatus(el.purchaseStatus, state.purchaseNotice, payload?.ok ? 'success' : 'error');
+  document.getElementById('purchaseRetryEmail')?.classList.toggle('hidden', !!payload?.ok);
+  postToBackend('purchaseList', {projectId: state.currentProject.id});
+}
+
+function handlePurchaseStartProcessing(payload) {
+  if (!payload?.ok) {
+    setStatus(el.purchaseStatus,
+      payload?.message || 'No se ha podido iniciar la tramitación.', 'error');
+  } else {
+    setStatus(el.purchaseStatus, payload.message || 'Tramitación iniciada.', 'success');
+  }
+  postToBackend('purchaseList', {projectId: state.currentProject.id});
+}
+
 
 function handlePurchaseMutation(payload) {
   setPurchaseSubmitting(false);
