@@ -2932,3 +2932,119 @@ button{cursor:pointer}
 
 /* v0.18.3 - planificación */
 .planning-calendar-filters{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.planning-calendar-filters .active{outline:2px solid currentColor}.planning-check-list{max-height:180px;overflow:auto;display:grid;gap:7px;border:1px solid var(--border,#d9dfe8);border-radius:10px;padding:10px;margin:8px 0}.planning-check{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}.planning-check input{width:16px;height:16px;flex:none}.planning-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:18px}.planning-form label{display:grid;gap:6px}.planning-form input,.planning-form select,.planning-form textarea{width:100%;min-width:0}.planning-full{grid-column:1/-1}.planning-buttons{display:flex;justify-content:flex-end;gap:10px}.subcontract-event{border-left:4px solid #8665bb!important}@media(max-width:700px){.planning-form{grid-template-columns:1fr}.planning-full{grid-column:1}}
+
+
+/* v0.18.4 — formulario de subcontratas alineado con los modales existentes.
+   Solo presentación; no modifica lógica ni peticiones al servidor. */
+#subcontractModal .modal-card{
+  width:min(780px,calc(100vw - 32px));
+  padding:28px;
+}
+#subcontractModal .modal-head{
+  align-items:flex-start;
+  margin-bottom:22px;
+}
+#subcontractModal .planning-form{
+  padding:0;
+  gap:16px;
+}
+#subcontractModal .planning-form > label{
+  min-width:0;
+  display:grid;
+  gap:7px;
+  font-size:12px;
+  font-weight:800;
+  color:var(--ink);
+}
+#subcontractModal .planning-form > label > input,
+#subcontractModal .planning-form > label > select,
+#subcontractModal .planning-form > label > textarea{
+  width:100%;
+  min-width:0;
+  min-height:43px;
+  padding:11px 13px;
+  border:1px solid #cfd9df;
+  border-radius:10px;
+  background:#fff;
+  color:var(--ink);
+  font:inherit;
+  font-weight:400;
+  outline:none;
+}
+#subcontractModal .planning-form > label > textarea{
+  min-height:86px;
+  resize:vertical;
+}
+#subcontractModal .planning-form > label > :is(input,select,textarea):focus{
+  border-color:#79bbb8;
+  box-shadow:0 0 0 3px rgba(0,139,135,.08);
+}
+#subcontractModal .planning-full > strong{
+  display:block;
+  margin-bottom:10px;
+  font-size:12px;
+  font-weight:800;
+  color:var(--ink);
+}
+/* IMPORTANTE: .planning-form label {display:grid} rompía las filas checkbox. */
+.planning-check-list{
+  max-height:205px;
+  overflow-y:auto;
+  overflow-x:hidden;
+  display:grid;
+  align-content:start;
+  gap:4px;
+  padding:8px;
+  border:1px solid #d9e2e8;
+  border-radius:10px;
+  background:#fbfcfd;
+}
+.planning-form .planning-check,
+.planning-check-list > label.planning-check{
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  justify-content:flex-start;
+  gap:11px;
+  min-height:39px;
+  width:100%;
+  margin:0;
+  padding:8px 10px;
+  border-radius:8px;
+  font-size:12px;
+  font-weight:500;
+  line-height:1.45;
+  cursor:pointer;
+}
+.planning-check-list > label.planning-check:hover{background:#eaf5f4}
+.planning-check-list > label.planning-check:has(input:checked){background:#e7f5f3}
+.planning-check-list .planning-check > input[type="checkbox"],
+.planning-form .planning-check > input[type="checkbox"]{
+  display:block;
+  flex:0 0 17px;
+  width:17px!important;
+  height:17px!important;
+  min-height:17px;
+  margin:0;
+  padding:0;
+  accent-color:#008b87;
+}
+.planning-check-list .planning-check > span{
+  display:block;
+  flex:1 1 auto;
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+#subcontractModal .planning-buttons{
+  align-items:center;
+  flex-wrap:wrap;
+  padding-top:16px;
+  border-top:1px solid #e5ecef;
+}
+#subcontractModal .planning-buttons > button:first-child:not(.hidden){margin-right:auto}
+@media(max-width:700px){
+  #subcontractModal .modal-card{width:min(560px,calc(100vw - 24px));padding:20px}
+  #subcontractModal .planning-form{grid-template-columns:1fr;gap:14px}
+  #subcontractModal .planning-buttons{justify-content:stretch}
+  #subcontractModal .planning-buttons .btn{flex:1 1 auto}
+}
