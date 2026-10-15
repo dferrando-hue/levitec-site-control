@@ -5,6 +5,7 @@ const CONFIG = window.LEVITEC_CONFIG;
 
 const state = {
   credential: null,
+  credentialExpiresAt: 0,
   bootstrap: null,
   currentProject: null,
   adminProjects: [],
@@ -31,11 +32,16 @@ const state = {
   workflowSubmitting: false,
   deliveries: [],
   constructionMilestones: [],
+  subcontractWorks: [],
+  planningCalendarFilter: 'ALL',
+  selectedSubcontractWork: null,
   selectedConstructionMilestone: null,
   deliveryFilter: 'ALL',
   deliveryCalendarDate: new Date(),
   selectedDelivery: null,
   deliverySubmitting: false,
+  deliveryCommentSubmitting: false,
+  selectedMilestoneDetailId: null,
 
   warehouses: [],
   warehouseZones: [],
@@ -215,6 +221,14 @@ const el = {
   deleteConstructionMilestoneBtn: $('deleteConstructionMilestoneBtn'),
   cancelConstructionMilestoneBtn: $('cancelConstructionMilestoneBtn'),
 
+  milestoneDetailModal: $('milestoneDetailModal'),
+  milestoneDetailTitle: $('milestoneDetailTitle'),
+  milestoneDetailMeta: $('milestoneDetailMeta'),
+  milestoneDetailSummary: $('milestoneDetailSummary'),
+  milestoneDetailDeliveries: $('milestoneDetailDeliveries'),
+  milestoneDetailSubcontracts: $('milestoneDetailSubcontracts'),
+  closeMilestoneDetailBtn: $('closeMilestoneDetailBtn'),
+  editMilestoneFromDetailBtn: $('editMilestoneFromDetailBtn'),
   deliveryModal: $('deliveryModal'),
   closeDeliveryModalBtn: $('closeDeliveryModalBtn'),
   deliveryModalTitle: $('deliveryModalTitle'),
@@ -224,6 +238,23 @@ const el = {
   deliveryFamily: $('deliveryFamily'),
   deliveryDestination: $('deliveryDestination'),
   deliveryMilestoneSelect: $('deliveryMilestoneSelect'),
+  newSubcontractBtn: $('newSubcontractBtn'),
+  subcontractModal: $('subcontractModal'),
+  subcontractForm: $('subcontractForm'),
+  subcontractId: $('subcontractId'),
+  subcontractSupplier: $('subcontractSupplier'),
+  subcontractActivity: $('subcontractActivity'),
+  subcontractStart: $('subcontractStart'),
+  subcontractEnd: $('subcontractEnd'),
+  subcontractPlanned: $('subcontractPlanned'),
+  subcontractActual: $('subcontractActual'),
+  subcontractStatus: $('subcontractStatus'),
+  subcontractNotes: $('subcontractNotes'),
+  subcontractMilestones: $('subcontractMilestones'),
+  subcontractList: $('subcontractList'),
+  closeSubcontractBtn: $('closeSubcontractBtn'),
+  cancelSubcontractBtn: $('cancelSubcontractBtn'),
+  deleteSubcontractBtn: $('deleteSubcontractBtn'),
   deliveryMilestoneOffset: $('deliveryMilestoneOffset'),
   saveDeliveryMilestoneBtn: $('saveDeliveryMilestoneBtn'),
   deliveryMaterials: $('deliveryMaterials'),
@@ -233,6 +264,10 @@ const el = {
   deliveryReceiptStatus: $('deliveryReceiptStatus'),
   deliveryReceiptNotes: $('deliveryReceiptNotes'),
   confirmDeliveryReceiptBtn: $('confirmDeliveryReceiptBtn'),
+  deliveryCommentsStatus: $('deliveryCommentsStatus'),
+  deliveryCommentsList: $('deliveryCommentsList'),
+  deliveryNewComment: $('deliveryNewComment'),
+  saveDeliveryCommentBtn: $('saveDeliveryCommentBtn'),
 
   backFromWarehouseBtn: $('backFromWarehouseBtn'),
   warehouseProjectSubtitle: $('warehouseProjectSubtitle'),
@@ -475,6 +510,73 @@ function clearStatus(target) {
 }
 
 
+/* SESION GOOGLE: aviso preventivo. La caducidad real se valida en el backend. */
+const SESSION_WARNING_MS = 5 * 60 * 1000;
+let sessionWarningNode = null;
+
+function googleTokenExpirationMs_(credential) {
+  try {
+    const part = String(credential || '').split('.')[1];
+    if (!part) return 0;
+    const base64 = part.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    const payload = JSON.parse(atob(padded));
+    const exp = Number(payload.exp);
+    return Number.isFinite(exp) && exp > 0 ? exp * 1000 : 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
+function sessionNotice_() {
+  if (sessionWarningNode) return sessionWarningNode;
+  const notice = document.createElement('div');
+  notice.id = 'sessionExpiryNotice';
+  notice.setAttribute('role', 'alert');
+  notice.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;background:#163a4a;color:white;padding:14px 16px;border-radius:12px;box-shadow:0 5px 24px #0005;display:none;align-items:center;gap:12px;flex-wrap:wrap;font:14px Arial,sans-serif';
+  const message = document.createElement('span');
+  message.id = 'sessionExpiryMessage';
+  message.style.cssText = 'flex:1;min-width:210px;line-height:1.4';
+  const renew = document.createElement('button');
+  renew.type = 'button';
+  renew.textContent = 'Renovar sesión';
+  renew.style.cssText = 'padding:10px 14px;border:0;border-radius:7px;background:#fff;color:#163a4a;font-weight:700;cursor:pointer';
+  renew.addEventListener('click', () => {
+    // No se solicita ni se almacena ninguna contraseña. Google vuelve a emitir la credencial.
+    show(el.loginView);
+    setStatus(el.loginStatus, 'Vuelve a identificarte con Google para continuar. Los datos ya guardados no se perderán.', 'info');
+  });
+  notice.append(message, renew);
+  document.body.appendChild(notice);
+  sessionWarningNode = notice;
+  return notice;
+}
+
+function checkSessionExpiry_() {
+  const notice = sessionNotice_();
+  const expires = state.credentialExpiresAt;
+  if (!state.credential || !expires) {
+    notice.style.display = 'none';
+    return false;
+  }
+  const remaining = expires - Date.now();
+  if (remaining > SESSION_WARNING_MS) {
+    notice.style.display = 'none';
+    return false;
+  }
+  const expired = remaining <= 0;
+  const mins = Math.max(1, Math.ceil(remaining / 60000));
+  notice.querySelector('#sessionExpiryMessage').textContent = expired
+    ? 'Tu sesión de Google ha caducado. Renueva la sesión antes de realizar otra operación; no se ha enviado ninguna solicitud.'
+    : 'Tu sesión de Google caducará en aproximadamente ' + mins + ' minuto(s). Renueva la sesión antes de guardar nuevos cambios.';
+  notice.style.display = 'flex';
+  return expired;
+}
+
+setInterval(checkSessionExpiry_, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkSessionExpiry_(); });
+window.addEventListener('focus', checkSessionExpiry_);
+
 /* GOOGLE LOGIN */
 function initGoogleIdentity() {
   if (!window.google || !google.accounts || !google.accounts.id) {
@@ -506,6 +608,8 @@ function handleGoogleCredential(response) {
   }
 
   state.credential = response.credential;
+  state.credentialExpiresAt = googleTokenExpirationMs_(response.credential);
+  checkSessionExpiry_();
   setStatus(el.loginStatus, 'Validando usuario y permisos…');
   postToBackend('bootstrap', {});
 }
@@ -513,6 +617,24 @@ function handleGoogleCredential(response) {
 
 /* BACKEND */
 function postToBackend(action, payload) {
+  if (checkSessionExpiry_()) {
+    if (action === 'purchaseCreate' || action === 'purchaseNotify') {
+      setPurchaseSubmitting(false);
+      if (el.purchaseModalStatus) setStatus(el.purchaseModalStatus, 'La sesión ha caducado. Renueva tu acceso antes de enviar la solicitud.', 'error');
+    }
+    if (action === 'deliveryCommentAdd') {
+      setDeliveryCommentSubmitting(false);
+      el.deliveryCommentsStatus.textContent = 'Sesión caducada. Renueva tu acceso antes de guardar el comentario.';
+    }
+    if (action === 'deliveryCommentsList') {
+      el.deliveryCommentsStatus.textContent = 'Sesión caducada. Renueva tu acceso para consultar el historial.';
+    }
+    if (['deliveryUpdateDate','deliveryConfirmReceipt','deliveryLinkMilestone','constructionMilestoneSave','constructionMilestoneDelete'].includes(action)) {
+      setDeliverySubmitting(false);
+      setStatus(el.deliveryStatus,'Sesión caducada. Renueva tu acceso antes de guardar cambios.','error');
+    }
+    return;
+  }
   el.backendAction.value = action;
   el.backendCredential.value = state.credential || '';
   el.backendPayload.value = JSON.stringify(payload || {});
@@ -574,7 +696,15 @@ window.addEventListener('message', event => {
     case 'deliveryList':
       handleDeliveryList(msg.payload);
       break;
+    case 'deliveryCommentsList':
+      handleDeliveryCommentsList(msg.payload);
+      break;
+    case 'deliveryCommentAdd':
+      handleDeliveryCommentAdd(msg.payload);
+      break;
 
+    case 'subcontractWorkSave':
+    case 'subcontractWorkDelete':
     case 'deliveryUpdateDate':
     case 'deliveryConfirmReceipt':
     case 'deliveryLinkMilestone':
@@ -657,6 +787,10 @@ window.addEventListener('message', event => {
 
       if (!el.deliveriesView.classList.contains('hidden')) {
         setDeliverySubmitting(false);
+        setDeliveryCommentSubmitting(false);
+        if (!el.deliveryModal.classList.contains('hidden')) {
+          el.deliveryCommentsStatus.textContent = msg.payload?.message || 'Error de servidor.';
+        }
         setStatus(el.deliveryStatus, msg.payload?.message || 'Error de servidor.', 'error');
       }
 
@@ -3128,6 +3262,8 @@ function openDeliveries() {
     `${state.currentProject.name || state.currentProject.id} · ${state.currentProject.campus || ''}`;
 
   state.deliveryFilter = 'ALL';
+  state.planningCalendarFilter = 'ALL';
+  document.querySelectorAll('[data-planning-filter]').forEach(b => b.classList.toggle('active', b.dataset.planningFilter === 'ALL'));
   state.deliveryCalendarDate = new Date();
 
   show(el.deliveriesView);
@@ -3144,6 +3280,8 @@ function handleDeliveryList(payload) {
 
   state.deliveries = Array.isArray(payload.deliveries) ? payload.deliveries : [];
   state.constructionMilestones = Array.isArray(payload.milestones) ? payload.milestones : [];
+  state.subcontractWorks = Array.isArray(payload.subcontractWorks) ? payload.subcontractWorks : [];
+  renderSubcontractList();
   clearStatus(el.deliveryStatus);
   renderDeliverySummary();
   renderConstructionMilestones();
@@ -3198,7 +3336,8 @@ function renderDeliveryCalendar() {
       String(date.getDate()).padStart(2,'0')
     ].join('-');
 
-    const items = state.deliveries.filter(item => item.expectedDeliveryDate === iso);
+    const items = state.planningCalendarFilter === 'SUBCONTRACTS' ? [] : state.deliveries.filter(item => item.expectedDeliveryDate === iso);
+    const works = state.planningCalendarFilter === 'DELIVERIES' ? [] : state.subcontractWorks.filter(w => w.start === iso);
     const milestones = state.constructionMilestones.filter(item => item.date === iso);
     const classes = ['calendar-day'];
     if (date.getMonth() !== month) classes.push('outside');
@@ -3213,6 +3352,7 @@ function renderDeliveryCalendar() {
             <span>${esc(milestone.type || 'HITO')}</span>
           </button>
         `).join('')}
+        ${works.map(w => `<button class="calendar-event subcontract-event" type="button" data-work-id="${esc(w.id)}"><strong>👷 ${esc(w.supplier)}</strong><span>${esc(w.planned)} pers. · ${esc(w.activity)}</span></button>`).join('')}
         ${items.map(item => {
           const eventClass = isDeliveryReceived(item) ? 'received' : isDeliveryLate(item) ? 'late' : '';
           return `
@@ -3235,10 +3375,14 @@ function renderDeliveryCalendar() {
     });
   });
 
+  el.deliveryCalendar.querySelectorAll('[data-work-id]').forEach(button => {
+    const w = state.subcontractWorks.find(x => x.id === button.dataset.workId);
+    button.addEventListener('click', () => { if (w) openSubcontractModal(w); });
+  });
   el.deliveryCalendar.querySelectorAll('.calendar-milestone').forEach(button => {
     button.addEventListener('click', () => {
       const milestone = state.constructionMilestones.find(m => m.milestoneId === button.dataset.milestoneId);
-      if (milestone) openConstructionMilestoneModal(milestone);
+      if (milestone) openMilestoneDetail(milestone);
     });
   });
 }
@@ -3270,7 +3414,7 @@ function renderDeliveryList() {
       </div>
       <div class="delivery-data"><span>Familia</span><strong>${esc(item.family || '—')}</strong></div>
       <div class="delivery-data"><span>Destino</span><strong>${esc(item.destination || '—')}</strong></div>
-      <div class="delivery-data"><span>Hito</span><strong>${esc(item.milestoneTitle || 'Sin referencia')}</strong><small>${esc(deliveryMilestoneDeltaText(item))}</small></div>
+      <div class="delivery-data"><span>Hito</span><strong>${esc(deliveryMilestoneTitles(item) || 'Sin referencia')}</strong><small>${esc(deliveryMilestoneDeltaText(item))}</small></div>
       <div><span class="delivery-date-pill ${dateClass}">${esc(item.expectedDeliveryDate || 'Sin fecha')}</span></div>
       <button class="btn btn-secondary btn-sm open-delivery-btn" type="button">Abrir</button>
     `;
@@ -3290,12 +3434,9 @@ function openDeliveryModal(item) {
   el.deliveryFamily.textContent = item.family || '—';
   el.deliveryDestination.textContent = [item.destinationType,item.destination].filter(Boolean).join(' · ') || '—';
 
-  el.deliveryMilestoneSelect.innerHTML =
-    '<option value="">Sin hito asociado</option>' +
-    state.constructionMilestones.map(m => `
-      <option value="${esc(m.milestoneId)}">${esc(m.date)} · ${esc(m.title)}</option>
-    `).join('');
-  el.deliveryMilestoneSelect.value = item.milestoneId || '';
+  el.deliveryMilestoneSelect.innerHTML = state.constructionMilestones.map(m =>
+    `<label class="planning-check"><input type="checkbox" value="${esc(m.milestoneId)}" ${(item.milestoneIds || (item.milestoneId ? [item.milestoneId] : [])).includes(m.milestoneId) ? 'checked' : ''}><span>${esc(m.date)} · ${esc(m.title)}</span></label>`
+  ).join('') || '<span class="muted">Crea primero un hito constructivo.</span>';
   updateDeliveryMilestoneOffset();
 
   el.deliveryDateInput.value = item.expectedDeliveryDate || '';
@@ -3314,7 +3455,12 @@ function openDeliveryModal(item) {
   ` : '<div class="empty-state">Sin líneas de material.</div>';
 
   setDeliverySubmitting(false);
+  setDeliveryCommentSubmitting(false);
+  el.deliveryNewComment.value = '';
+  el.deliveryCommentsList.innerHTML = '';
+  el.deliveryCommentsStatus.textContent = 'Cargando historial…';
   el.deliveryModal.classList.remove('hidden');
+  postToBackend('deliveryCommentsList', {requestId:item.requestId});
 }
 
 
@@ -3340,49 +3486,27 @@ function deliveryMilestoneDeltaText(item) {
   return 'Mismo día que el hito';
 }
 
+function selectedPlanningIds(container) {
+  return [...container.querySelectorAll('input[type="checkbox"]:checked')].map(x => x.value);
+}
+function deliveryMilestoneTitles(item) {
+  const ids = item.milestoneIds || (item.milestoneId ? [item.milestoneId] : []);
+  return ids.map(id => state.constructionMilestones.find(m => m.milestoneId === id)?.title || '').filter(Boolean).join(' · ');
+}
 function updateDeliveryMilestoneOffset() {
   if (!state.selectedDelivery) return;
-
-  const milestone = state.constructionMilestones.find(
-    m => m.milestoneId === el.deliveryMilestoneSelect.value
-  );
-
-  el.deliveryMilestoneOffset.className = 'milestone-offset neutral';
-
-  if (!milestone) {
-    el.deliveryMilestoneOffset.textContent = 'Sin referencia constructiva.';
-    return;
-  }
-
-  const days = deliveryMilestoneDelta_(state.selectedDelivery.expectedDeliveryDate, milestone.date);
-
-  if (days === null) {
-    el.deliveryMilestoneOffset.textContent = 'No se puede calcular el margen.';
-    return;
-  }
-
-  if (days > 0) {
-    el.deliveryMilestoneOffset.className = 'milestone-offset positive';
-    el.deliveryMilestoneOffset.textContent =
-      `Llegada prevista ${days} día${days === 1 ? '' : 's'} antes del hito (${milestone.date}).`;
-  } else if (days < 0) {
-    el.deliveryMilestoneOffset.className = 'milestone-offset negative';
-    el.deliveryMilestoneOffset.textContent =
-      `Atención: llegada prevista ${Math.abs(days)} día${Math.abs(days) === 1 ? '' : 's'} después del hito (${milestone.date}).`;
-  } else {
-    el.deliveryMilestoneOffset.className = 'milestone-offset warning';
-    el.deliveryMilestoneOffset.textContent = `Llegada prevista el mismo día del hito (${milestone.date}).`;
-  }
+  const ids = selectedPlanningIds(el.deliveryMilestoneSelect);
+  const milestones = state.constructionMilestones.filter(m => ids.includes(m.milestoneId));
+  const warnings = milestones.filter(m => deliveryMilestoneDelta_(state.selectedDelivery.expectedDeliveryDate,m.date) < 0);
+  el.deliveryMilestoneOffset.className = 'milestone-offset ' + (warnings.length ? 'negative' : 'neutral');
+  el.deliveryMilestoneOffset.textContent = !milestones.length ? 'Sin hitos asociados.' :
+    warnings.length ? `Atención: entrega posterior a ${warnings.length} hito(s): ${warnings.map(m=>m.title).join(', ')}` :
+    `${milestones.length} hito(s) asociados. Sin conflictos de fecha detectados.`;
 }
-
 function saveDeliveryMilestone() {
   if (!state.selectedDelivery || state.deliverySubmitting) return;
-
   setDeliverySubmitting(true);
-  postToBackend('deliveryLinkMilestone', {
-    requestId: state.selectedDelivery.requestId,
-    milestoneId: el.deliveryMilestoneSelect.value
-  });
+  postToBackend('deliveryLinkMilestone', {requestId:state.selectedDelivery.requestId,milestoneIds:selectedPlanningIds(el.deliveryMilestoneSelect)});
 }
 
 function renderConstructionMilestones() {
@@ -3397,7 +3521,7 @@ function renderConstructionMilestones() {
   }
 
   state.constructionMilestones.forEach(milestone => {
-    const linked = state.deliveries.filter(d => d.milestoneId === milestone.milestoneId);
+    const linked = state.deliveries.filter(d => (d.milestoneIds || [d.milestoneId]).includes(milestone.milestoneId));
     const late = linked.filter(d => {
       const delta = deliveryMilestoneDelta_(d.expectedDeliveryDate, milestone.date);
       return delta !== null && delta < 0 && !isDeliveryReceived(d);
@@ -3427,9 +3551,117 @@ function renderConstructionMilestones() {
           : '<span class="delivery-doc-readiness doc-not-configured">Documentación: sin configurar</span>'}
       </div>
     `;
-    card.addEventListener('click', () => openConstructionMilestoneModal(milestone));
+    card.addEventListener('click', () => openMilestoneDetail(milestone));
     el.constructionMilestoneList.appendChild(card);
   });
+}
+
+function openMilestoneDetail(milestone) {
+  if (!milestone) return;
+  state.selectedMilestoneDetailId = milestone.milestoneId;
+  el.milestoneDetailTitle.textContent = milestone.title || 'Hito constructivo';
+  el.milestoneDetailMeta.textContent = [milestone.date,milestone.type,milestone.discipline].filter(Boolean).join(' · ');
+  const linked = state.deliveries.filter(d => (d.milestoneIds || [d.milestoneId]).includes(milestone.milestoneId));
+  const workLinked = state.subcontractWorks.filter(w => (w.milestoneIds || []).includes(milestone.milestoneId));
+  const received = linked.filter(isDeliveryReceived).length;
+  const risk = linked.filter(d => { const delta = deliveryMilestoneDelta_(d.expectedDeliveryDate,milestone.date); return !isDeliveryReceived(d) && delta !== null && delta < 0; }).length;
+  el.milestoneDetailSummary.innerHTML = `
+    <div><strong>${linked.length}</strong><span>Asociadas</span></div>
+    <div><strong>${received}</strong><span>Recibidas / parciales</span></div>
+    <div><strong>${risk}</strong><span>Después del hito</span></div>
+    <div><strong>${workLinked.length}</strong><span>Trabajos subcontratas</span></div>`;
+  el.milestoneDetailDeliveries.innerHTML = '';
+  if (!linked.length) {
+    el.milestoneDetailDeliveries.innerHTML = '<div class="empty-state">No hay deliveries vinculadas a este hito.</div>';
+  } else {
+    linked.slice().sort((a,b) => (a.expectedDeliveryDate||'').localeCompare(b.expectedDeliveryDate||'')).forEach(d => {
+      const row = document.createElement('div');
+      row.className = 'milestone-detail-row';
+      const status = isDeliveryReceived(d) ? 'Recibida / parcial' : isDeliveryLate(d) ? 'Atrasada' : 'Pendiente';
+      const delta = deliveryMilestoneDelta_(d.expectedDeliveryDate,milestone.date);
+      const warning = delta!==null && delta<0 && !isDeliveryReceived(d);
+      row.innerHTML = `<div><strong>${esc(d.supplier||'Proveedor')}</strong><span>${esc(d.poNumber||d.requestId)} · ${esc(d.family||'—')}</span></div>
+        <div><strong>${esc(d.expectedDeliveryDate||'Sin fecha')}</strong><span class="${warning?'milestone-risk':''}">${esc(status)} · ${esc((()=>{const n=deliveryMilestoneDelta_(d.expectedDeliveryDate,milestone.date);return n===null?'Sin margen':n<0?Math.abs(n)+' días después del hito':n===0?'Mismo día del hito':n+' días antes del hito';})())}</span></div>
+        <button class="btn btn-secondary btn-sm" type="button">Abrir pedido</button>`;
+      row.querySelector('button').addEventListener('click', () => {
+        closeMilestoneDetail();
+        openDeliveryModal(d);
+      });
+      el.milestoneDetailDeliveries.appendChild(row);
+    });
+  }
+  el.milestoneDetailSubcontracts.innerHTML = workLinked.length ? '' : '<div class="empty-state">Sin trabajos asociados.</div>';
+  workLinked.forEach(w => {
+    const row = document.createElement('div'); row.className='milestone-detail-row';
+    row.innerHTML=`<div><strong>${esc(w.supplier)}</strong><span>${esc(w.activity)}</span></div><div><strong>${esc(w.start)} → ${esc(w.end||'Sin fin')}</strong><span>${esc(w.planned)} personas previstas · ${esc(w.status)}</span></div><button class="btn btn-secondary btn-sm" type="button">Abrir</button>`;
+    row.querySelector('button').addEventListener('click',()=>{closeMilestoneDetail();openSubcontractModal(w);});
+    el.milestoneDetailSubcontracts.appendChild(row);
+  });
+  el.milestoneDetailModal.classList.remove('hidden');
+}
+
+function closeMilestoneDetail() {
+  el.milestoneDetailModal.classList.add('hidden');
+  state.selectedMilestoneDetailId = null;
+}
+
+function setDeliveryCommentSubmitting(value) {
+  state.deliveryCommentSubmitting = value;
+  el.saveDeliveryCommentBtn.disabled = value;
+  el.saveDeliveryCommentBtn.textContent = value ? 'Guardando…' : 'Añadir al historial';
+}
+
+function renderDeliveryComments(comments, hasMore) {
+  el.deliveryCommentsList.innerHTML = '';
+  if (!comments.length) {
+    el.deliveryCommentsList.innerHTML = '<div class="muted">Todavía no hay comentarios.</div>';
+  } else {
+    comments.forEach(c => {
+      const row = document.createElement('div');
+      row.className = 'delivery-comment';
+      row.innerHTML = `<div class="delivery-comment-meta"><strong>${esc(c.author||'Usuario')}</strong><span>${esc(c.createdAt||'')}</span></div><p>${esc(c.text||'')}</p>`;
+      el.deliveryCommentsList.appendChild(row);
+    });
+  }
+  el.deliveryCommentsStatus.textContent = hasMore ? 'Se muestran los 50 comentarios más recientes.' : '';
+}
+
+function handleDeliveryCommentsList(payload) {
+  if (!state.selectedDelivery || payload?.requestId !== state.selectedDelivery.requestId) return;
+  if (!payload?.ok) {
+    el.deliveryCommentsStatus.textContent = payload?.message || 'No se ha podido cargar el historial.';
+    return;
+  }
+  renderDeliveryComments(Array.isArray(payload.comments)?payload.comments:[],payload.hasMore);
+}
+
+function saveDeliveryComment() {
+  if (!state.selectedDelivery || state.deliveryCommentSubmitting) return;
+  const comment = el.deliveryNewComment.value.trim();
+  if (!comment) { el.deliveryCommentsStatus.textContent = 'Escribe un comentario antes de guardarlo.'; return; }
+  setDeliveryCommentSubmitting(true);
+  el.deliveryCommentsStatus.textContent = '';
+  postToBackend('deliveryCommentAdd', {requestId:state.selectedDelivery.requestId,comment});
+}
+
+function handleDeliveryCommentAdd(payload) {
+  setDeliveryCommentSubmitting(false);
+  if (!state.selectedDelivery || payload?.requestId !== state.selectedDelivery.requestId) return;
+  if (!payload?.ok) {
+    el.deliveryCommentsStatus.textContent = payload?.message || 'No se ha podido guardar el comentario.';
+    return;
+  }
+  el.deliveryNewComment.value = '';
+  const empty = el.deliveryCommentsList.querySelector('.muted');
+  if (empty) el.deliveryCommentsList.innerHTML = '';
+  const c = payload.comment;
+  if (c) {
+    const row = document.createElement('div');
+    row.className = 'delivery-comment';
+    row.innerHTML = `<div class="delivery-comment-meta"><strong>${esc(c.author||'Usuario')}</strong><span>${esc(c.createdAt||'')}</span></div><p>${esc(c.text||'')}</p>`;
+    el.deliveryCommentsList.prepend(row);
+  }
+  el.deliveryCommentsStatus.textContent = 'Comentario guardado.';
 }
 
 function openConstructionMilestoneModal(milestone = null) {
@@ -3496,6 +3728,7 @@ function closeDeliveryModal() {
   el.deliveryModal.classList.add('hidden');
   state.selectedDelivery = null;
   setDeliverySubmitting(false);
+  setDeliveryCommentSubmitting(false);
 }
 
 function setDeliverySubmitting(value) {
@@ -3556,6 +3789,7 @@ function handleDeliveryMutation(payload) {
   }
 
   if (!el.deliveryModal.classList.contains('hidden')) closeDeliveryModal();
+  if (!el.subcontractModal.classList.contains('hidden')) closeSubcontractModal();
   if (!el.constructionMilestoneModal.classList.contains('hidden')) closeConstructionMilestoneModal();
   setStatus(el.deliveryStatus,payload.message || 'Planificación actualizada.','success');
   postToBackend('deliveryList',{projectId:state.currentProject.id});
@@ -4119,6 +4353,8 @@ function setWarehouseTab(tabName) {
 /* LOGOUT / HELPERS */
 function logout() {
   state.credential = null;
+  state.credentialExpiresAt = 0;
+  checkSessionExpiry_();
   state.bootstrap = null;
   state.currentProject = null;
   state.adminProjects = [];
@@ -4180,7 +4416,64 @@ document.querySelectorAll('.delivery-filter').forEach(button => {
   });
 });
 
+function renderSubcontractList() {
+  el.subcontractList.innerHTML = '';
+  state.subcontractWorks.forEach(w => {
+    const row=document.createElement('div'); row.className='delivery-row';
+    row.innerHTML=`<div class="delivery-main"><strong>${esc(w.supplier)}</strong><span>${esc(w.activity)}</span></div><div class="delivery-data"><span>Inicio / fin</span><strong>${esc(w.start)} / ${esc(w.end||'—')}</strong></div><div class="delivery-data"><span>Personal previsto / real</span><strong>${esc(w.planned)} / ${w.actual===null?'—':esc(w.actual)}</strong></div><div class="delivery-data"><span>Estado</span><strong>${esc(w.status)}</strong></div><button class="btn btn-secondary btn-sm" type="button">Abrir</button>`;
+    row.querySelector('button').addEventListener('click',()=>openSubcontractModal(w));
+    el.subcontractList.appendChild(row);
+  });
+  if (!state.subcontractWorks.length) el.subcontractList.innerHTML='<div class="empty-state">Todavía no hay incorporaciones planificadas.</div>';
+}
+function openSubcontractModal(w=null) {
+  state.selectedSubcontractWork=w;
+  el.subcontractForm.reset();
+  el.subcontractId.value=w?.id||'';
+  el.subcontractSupplier.value=w?.supplier||'';
+  el.subcontractActivity.value=w?.activity||'';
+  el.subcontractStart.value=w?.start||'';
+  el.subcontractEnd.value=w?.end||'';
+  el.subcontractPlanned.value=w?.planned||6;
+  el.subcontractActual.value=w?.actual??'';
+  el.subcontractStatus.value=w?.status||'PLANIFICADO';
+  el.subcontractNotes.value=w?.notes||'';
+  el.subcontractMilestones.innerHTML=state.constructionMilestones.map(m=>`<label class="planning-check"><input type="checkbox" value="${esc(m.milestoneId)}" ${(w?.milestoneIds||[]).includes(m.milestoneId)?'checked':''}><span>${esc(m.date)} · ${esc(m.title)}</span></label>`).join('')||'<span class="muted">Sin hitos constructivos.</span>';
+  el.deleteSubcontractBtn.classList.toggle('hidden',!w);
+  el.subcontractModal.classList.remove('hidden');
+}
+function closeSubcontractModal() { el.subcontractModal.classList.add('hidden'); state.selectedSubcontractWork=null; }
+function saveSubcontract(event) {
+  event.preventDefault();
+  if (!state.currentProject || state.deliverySubmitting) return;
+  setDeliverySubmitting(true);
+  postToBackend('subcontractWorkSave',{id:el.subcontractId.value,projectId:state.currentProject.id,supplier:el.subcontractSupplier.value,activity:el.subcontractActivity.value,start:el.subcontractStart.value,end:el.subcontractEnd.value,planned:el.subcontractPlanned.value,actual:el.subcontractActual.value,status:el.subcontractStatus.value,notes:el.subcontractNotes.value,milestoneIds:selectedPlanningIds(el.subcontractMilestones)});
+}
+function deleteSubcontract() {
+  if (!state.selectedSubcontractWork || !window.confirm('¿Desactivar esta planificación?')) return;
+  setDeliverySubmitting(true);
+  postToBackend('subcontractWorkDelete',{projectId:state.currentProject.id,id:state.selectedSubcontractWork.id});
+}
+el.newSubcontractBtn.addEventListener('click',()=>openSubcontractModal());
+el.closeSubcontractBtn.addEventListener('click',closeSubcontractModal);
+el.cancelSubcontractBtn.addEventListener('click',closeSubcontractModal);
+el.subcontractModal.querySelector('.modal-backdrop').addEventListener('click',closeSubcontractModal);
+el.subcontractForm.addEventListener('submit',saveSubcontract);
+el.deleteSubcontractBtn.addEventListener('click',deleteSubcontract);
+document.querySelectorAll('[data-planning-filter]').forEach(b=>b.addEventListener('click',()=>{
+  state.planningCalendarFilter=b.dataset.planningFilter;
+  document.querySelectorAll('[data-planning-filter]').forEach(x=>x.classList.toggle('active',x===b));
+  renderDeliveryCalendar();
+}));
+
 el.newMilestoneBtn.addEventListener('click', () => openConstructionMilestoneModal());
+el.closeMilestoneDetailBtn.addEventListener('click', closeMilestoneDetail);
+el.milestoneDetailModal.querySelector('.modal-backdrop').addEventListener('click', closeMilestoneDetail);
+el.editMilestoneFromDetailBtn.addEventListener('click', () => {
+  const milestone = state.constructionMilestones.find(m => m.milestoneId === state.selectedMilestoneDetailId);
+  closeMilestoneDetail();
+  if (milestone) openConstructionMilestoneModal(milestone);
+});
 el.closeConstructionMilestoneModalBtn.addEventListener('click', closeConstructionMilestoneModal);
 el.cancelConstructionMilestoneBtn.addEventListener('click', closeConstructionMilestoneModal);
 el.constructionMilestoneModal.querySelector('.modal-backdrop').addEventListener('click', closeConstructionMilestoneModal);
@@ -4193,6 +4486,7 @@ el.deliveryMilestoneSelect.addEventListener('change', updateDeliveryMilestoneOff
 el.saveDeliveryMilestoneBtn.addEventListener('click', saveDeliveryMilestone);
 el.saveDeliveryDateBtn.addEventListener('click', saveDeliveryDate);
 el.confirmDeliveryReceiptBtn.addEventListener('click', confirmDeliveryReceipt);
+el.saveDeliveryCommentBtn.addEventListener('click', saveDeliveryComment);
 
 
 el.backFromWarehouseBtn.addEventListener('click', () => show(el.projectView));

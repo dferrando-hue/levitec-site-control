@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=0.18.0">
+  <link rel="stylesheet" href="styles.css?v=0.18.2">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -481,9 +481,10 @@
     <button id="backFromDeliveriesBtn" class="btn btn-secondary" type="button">← Proyecto</button>
     <div>
       <div class="eyebrow">DELIVERIES · CONSTRUCCIÓN</div>
-      <h1>Entregas e hitos constructivos</h1>
+      <h1>Planificación y Deliveries</h1>
       <p id="deliveriesProjectSubtitle" class="muted"></p>
     </div>
+    <button id="newSubcontractBtn" class="btn btn-primary" type="button">+ Inicio subcontrata</button>
     <button id="newMilestoneBtn" class="btn btn-primary" type="button">+ Hito constructivo</button>
     <div class="calendar-nav">
       <button id="prevMonthBtn" class="btn btn-secondary" type="button">←</button>
@@ -501,6 +502,7 @@
 
   <div id="deliveryStatus" class="status hidden"></div>
 
+  <div class="planning-calendar-filters"><button type="button" class="btn btn-secondary active" data-planning-filter="ALL">Todo</button><button type="button" class="btn btn-secondary" data-planning-filter="DELIVERIES">Materiales</button><button type="button" class="btn btn-secondary" data-planning-filter="SUBCONTRACTS">Subcontratas</button></div>
   <div class="calendar-shell">
     <div id="deliveryCalendar" class="delivery-calendar"></div>
   </div>
@@ -516,6 +518,7 @@
     <div id="constructionMilestoneList" class="milestone-list"></div>
   </div>
 
+  <div class="milestone-section"><div class="milestone-section-head"><h2>Incorporación de subcontratas</h2></div><div id="subcontractList" class="delivery-list"></div></div>
   <div class="delivery-list-head">
     <h2>Entregas del proyecto</h2>
     <div class="delivery-filters">
@@ -1326,6 +1329,46 @@
 </div>
 
 
+<div id="milestoneDetailModal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-card modal-wide">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">SEGUIMIENTO DE HITO</div>
+        <h2 id="milestoneDetailTitle">Hito constructivo</h2>
+        <p id="milestoneDetailMeta" class="muted modal-sub"></p>
+      </div>
+      <button id="closeMilestoneDetailBtn" class="icon-btn" type="button" aria-label="Cerrar">×</button>
+    </div>
+    <div class="milestone-detail-body">
+      <div id="milestoneDetailSummary" class="milestone-detail-summary"></div>
+      <div class="milestone-detail-heading">
+        <strong>Deliveries asociadas</strong>
+        <button id="editMilestoneFromDetailBtn" class="btn btn-secondary btn-sm" type="button">Editar hito</button>
+      </div>
+      <div id="milestoneDetailDeliveries" class="milestone-detail-deliveries"></div><div class="milestone-detail-heading"><strong>Trabajos de subcontratas asociados</strong></div><div id="milestoneDetailSubcontracts" class="milestone-detail-deliveries"></div>
+    </div>
+  </div>
+</div>
+
+<div id="subcontractModal" class="modal hidden">
+  <div class="modal-backdrop"></div><div class="modal-card modal-wide">
+    <div class="modal-head"><div><div class="eyebrow">PLANIFICACIÓN DE OBRA</div><h2>Incorporación de subcontrata</h2></div><button id="closeSubcontractBtn" class="icon-btn" type="button">×</button></div>
+    <form id="subcontractForm" class="planning-form">
+      <input id="subcontractId" type="hidden">
+      <label>Subcontrata<input id="subcontractSupplier" required maxlength="180" placeholder="Ej. MONBREK"></label>
+      <label>Actividad<input id="subcontractActivity" required maxlength="300" placeholder="Ej. Instalación conductos oficinas"></label>
+      <label>Inicio previsto<input id="subcontractStart" type="date" required></label>
+      <label>Fin previsto<input id="subcontractEnd" type="date"></label>
+      <label>Personal previsto<input id="subcontractPlanned" type="number" min="1" max="10000" required></label>
+      <label>Personal real (opcional)<input id="subcontractActual" type="number" min="0" max="10000" placeholder="Pendiente de confirmar"></label>
+      <label>Estado<select id="subcontractStatus"><option value="PLANIFICADO">Planificado</option><option value="CONFIRMADO">Confirmado</option><option value="EN_CURSO">En curso</option><option value="FINALIZADO">Finalizado</option><option value="RETRASADO">Retrasado</option></select></label>
+      <label class="planning-full">Notas<textarea id="subcontractNotes" rows="3" maxlength="2000"></textarea></label>
+      <div class="planning-full"><strong>Hitos constructivos asociados</strong><div id="subcontractMilestones" class="planning-check-list"></div></div>
+      <div class="planning-full planning-buttons"><button id="deleteSubcontractBtn" class="btn btn-secondary hidden" type="button">Desactivar</button><button id="cancelSubcontractBtn" class="btn btn-secondary" type="button">Cancelar</button><button class="btn btn-primary" type="submit">Guardar planificación</button></div>
+    </form>
+  </div>
+</div>
 <div id="deliveryModal" class="modal hidden">
   <div class="modal-backdrop"></div>
   <div class="modal-card modal-wide">
@@ -1351,13 +1394,8 @@
 
       <section class="delivery-actions-panel">
         <div class="delivery-action-block milestone-link-block">
-          <div class="eyebrow">HITO DE REFERENCIA</div>
-          <label>
-            <span>Hito constructivo</span>
-            <select id="deliveryMilestoneSelect">
-              <option value="">Sin hito asociado</option>
-            </select>
-          </label>
+          <div class="eyebrow">HITOS ASOCIADOS</div>
+          <div><span>Selecciona uno o varios hitos constructivos</span><div id="deliveryMilestoneSelect" class="planning-check-list"></div></div>
           <div id="deliveryMilestoneOffset" class="milestone-offset neutral">Sin referencia constructiva.</div>
           <button id="saveDeliveryMilestoneBtn" class="btn btn-secondary" type="button">Guardar referencia</button>
         </div>
@@ -1367,6 +1405,15 @@
           <label><span>Fecha prevista de entrega</span><input id="deliveryDateInput" type="date"></label>
           <label><span>Motivo del cambio</span><textarea id="deliveryChangeReason" rows="3" placeholder="Ej. ajuste con proveedor por secuencia de obra"></textarea></label>
           <button id="saveDeliveryDateBtn" class="btn btn-primary" type="button">Actualizar fecha</button>
+        </div>
+
+        <div class="delivery-action-block delivery-comments-block">
+          <div class="eyebrow">SEGUIMIENTO DEL PEDIDO</div>
+          <div class="muted">Comentarios acumulativos con autor y fecha, independientes de la recepción.</div>
+          <div id="deliveryCommentsStatus" class="muted" role="status"></div>
+          <div id="deliveryCommentsList" class="delivery-comments-list"></div>
+          <label><span>Añadir comentario</span><textarea id="deliveryNewComment" maxlength="1500" rows="3" placeholder="Ej. Proveedor confirma nueva fecha. Pendiente de validación..."></textarea></label>
+          <button id="saveDeliveryCommentBtn" class="btn btn-secondary" type="button">Añadir al historial</button>
         </div>
 
         <div class="delivery-action-block">
@@ -1402,6 +1449,6 @@ window.LEVITEC_CONFIG = {
 };
 </script>
 
-<script src="app.js?v=0.18.0"></script>
+<script src="app.js?v=0.18.3"></script>
 </body>
 </html>
