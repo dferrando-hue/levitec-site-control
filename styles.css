@@ -3060,3 +3060,14 @@ button{cursor:pointer}
 @media(max-width:680px){#mechDrawingMilestoneChecks.mech-check-list{grid-template-columns:1fr}}
 
 .mech-field-help{margin:12px 0 18px;padding:12px 14px;background:#f4f9f9;border:1px solid #dce7e7;border-radius:9px;line-height:1.6}.mech-field-help summary{cursor:pointer;font-weight:700;color:#126f6b}.mech-field-help p{margin:8px 0 0;font-size:13px}
+
+/* Mechanical 0.19.3: filas de hitos legibles */
+#mechDrawingMilestoneChecks .mech-milestone-option, #mechMilestoneDrawingOptions .mech-milestone-option{display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;gap:12px!important;text-align:left!important}
+.mech-milestone-option input[type=checkbox]{width:18px!important;height:18px!important;min-width:18px!important;flex:0 0 18px!important;margin:0!important}
+.mech-milestone-option span{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}.mech-milestone-option small{font-size:12px;color:#667680}
+#mechMilestoneDrawingOptions{display:grid;grid-template-columns:1fr 1fr;gap:8px;overflow:auto;padding:8px}
+#mechMilestoneDrawingOptions label{padding:10px;border:1px solid #dce5e9;border-radius:8px;cursor:pointer}
+@media(max-width:720px){#mechMilestoneDrawingOptions{grid-template-columns:1fr}}
+
+.mech-advanced-fields{padding:12px 14px;border:1px solid #dce5e9;border-radius:10px;background:#f8fbfb}
+.mech-advanced-fields summary{font-weight:700;cursor:pointer}.mech-advanced-fields>.form-grid{margin-top:14px}

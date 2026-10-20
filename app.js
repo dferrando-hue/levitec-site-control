@@ -457,6 +457,7 @@ const el = {
 };
 
 const ROLE_LABELS = {
+  DRAUGHTSMAN:'Delineante', DELINEANTE:'Delineante', BIM:'BIM / Delineación',
   ADMIN: 'Administrador',
   PROJECT_MANAGER: 'Project Manager',
   SITE_MANAGER: 'Jefe de obra',
@@ -727,6 +728,9 @@ window.addEventListener('message', event => {
       break;
     case 'mechanicalDrawingMilestonesSave':
       handleDrawingMilestonesSave(msg.payload);
+      break;
+    case 'mechanicalMilestoneDrawingsSaveBatch':
+      handleMilestoneDrawingsBatch(msg.payload);
       break;
     case 'mechanicalReadiness':
       handleMechanicalReadiness(msg.payload);
@@ -1164,18 +1168,33 @@ function openMechanical() {
   el.mechanicalProjectSubtitle.textContent =
     `${state.currentProject.id} · ${state.currentProject.name || state.currentProject.id}`;
 
-  state.mechanical.drawingsLoaded = false;
-  state.mechanical.drawings = [];
-  state.mechanical.drawingsLoading = true; // Evitar llamadas simultáneas durante la carga inicial.
+  // Borrar inmediatamente los datos del proyecto anterior: nunca mostrar ZAZ081 en ZAZ091.
+  Object.assign(state.mechanical, {submittals:[],subpackages:[],milestones:[],links:[],foks:[],fokLinks:[],
+    drawings:[],drawingLinks:[],drawingHistory:[],drawingsLoaded:false,drawingsLoading:true,
+    canEdit:false,drawingCanEdit:false,drawingCanValidate:false,drawingEditing:null,drawingPendingLinks:null});
+  el.mechanicalReadinessGrid.innerHTML = '<div class="mechanical-empty-panel">Cargando hitos del proyecto…</div>';
+  for(const id of ['mechanicalMilestoneCount','mechanicalReadyCount','mechanicalRiskCount','mechanicalApprovedCount'])
+    document.getElementById(id).textContent='—';
+  document.getElementById('mechanicalApprovedMeta').textContent='Cargando proyecto…';
+  el.mechanicalSubmittalBody.innerHTML='';
+  document.getElementById('mechanicalSubpackageSummary').innerHTML='';
+  document.getElementById('fokBody').innerHTML='';
+  document.getElementById('mechDrawingRows').innerHTML = '';
+  document.getElementById('mechDrawingEmpty').textContent = 'Cargando planos del proyecto…';
+  document.getElementById('mechMyPending').innerHTML = '';
+  document.getElementById('mechDrawingKpis').innerHTML = '';
+  document.getElementById('mechDrawingOverview').textContent = 'Cargando planos del proyecto…';
+  document.getElementById('mechNewDrawing').classList.add('hidden');
+  closeDrawingModal();
   setMechanicalTab('milestones');
   setStatus(el.mechanicalStatus, 'Cargando preparación documental…');
-  postToBackend('mechanicalReadiness', {
-    projectId:state.currentProject.id
-  });
+  // Cargar readiness y después planos: el transporte usa un único iframe de respuesta.
+  postToBackend('mechanicalReadiness', {projectId:state.currentProject.id});
 }
 
 
 function handleMechanicalReadiness(payload) {
+  if (payload?.projectId && payload.projectId !== state.currentProject?.id) return;
   if (!payload?.ok) {
     setStatus(el.mechanicalStatus, payload?.message || 'No se ha podido cargar Mechanical.', 'error');
     return;
@@ -1200,12 +1219,8 @@ function handleMechanicalReadiness(payload) {
   populateFokFilters();
   renderFokTracker();
   renderDrawingOverview();
-  state.mechanical.drawingsLoading=false;
-  if(['milestones','drawings','pending'].includes(state.mechanical.drawingTab)) {
-    state.mechanical.drawingsLoading=true;
-    postToBackend('mechanicalDrawingList',{projectId:state.currentProject.id});
-  }
   clearStatus(el.mechanicalStatus);
+  if(!m.drawingsLoaded && m.drawingsLoading) postToBackend('mechanicalDrawingList',{projectId:state.currentProject.id});
 }
 
 
@@ -2086,9 +2101,8 @@ function handleMechanicalMutation(payload) {
   closeMilestoneSubmittalModal();
   setStatus(el.mechanicalStatus, payload.message || 'Cambio guardado.', 'success');
 
-  postToBackend('mechanicalReadiness', {
-    projectId:state.currentProject.id
-  });
+  // Cargar readiness y después planos: el transporte usa un único iframe de respuesta.
+  postToBackend('mechanicalReadiness', {projectId:state.currentProject.id});
 }
 
 
@@ -4705,9 +4719,9 @@ function setMechanicalTab(tab) {
 }
 function drawingMe() {return (state.bootstrap?.user?.email||'').toLowerCase();}
 function handleDrawingList(payload) {
+  if(payload?.projectId!==state.currentProject?.id) return;
   state.mechanical.drawingsLoading=false;
   if(!payload?.ok) {setStatus(el.mechanicalStatus,payload?.message||'Error al cargar planos.','error');return;}
-  if(payload.projectId!==state.currentProject?.id) return;
   const m=state.mechanical;
   m.drawings=payload.drawings||[];m.drawingLinks=payload.links||[];m.drawingHistory=[];
   m.drawingCanEdit=!!payload.canEdit;m.drawingCanValidate=!!payload.canValidate;m.drawingsLoaded=true;
@@ -4716,7 +4730,7 @@ function handleDrawingList(payload) {
   if(state.mechanical.milestones.length) renderMechanicalReadiness();
 }
 function handleDrawingHistory(payload) {
-  if(!payload?.ok || !state.mechanical.drawingEditing || payload.drawingId!==state.mechanical.drawingEditing.id) return;
+  if(!payload?.ok || payload.projectId!==state.currentProject?.id || !state.mechanical.drawingEditing || payload.drawingId!==state.mechanical.drawingEditing.id) return;
   const events=payload.history||[];
   document.getElementById('mechDrawingHistory').innerHTML=events.length?events.slice(-40).reverse().map(x=>
     `<div class="mech-history-item">${esc(x.at)} · ${esc(x.actor)} · ${esc(x.event)}<br>${esc(x.from||'—')} → ${esc(x.to||'—')} · Rev. ${esc(x.revision||'—')} · ${esc(x.detail||'')}</div>`
@@ -4728,7 +4742,7 @@ function renderMilestoneDrawingGate(milestone) {
  const isReady=x=>(x.type==='ARUP_REFERENCIA'||x.submittalRequired==='SI') ? x.status==='APROBADO_ARUP' : x.status==='VALIDADO_INTERNAMENTE';
  const requiredItems=items;
  const approved=requiredItems.filter(isReady).length;
- return `<div class="readiness-associated-head"><div><strong>Planos requeridos para el hito</strong><span>${items.length?`${approved}/${requiredItems.length} con condición documental cumplida`:'Sin planos asociados (no configurado)'}</span></div><button type="button" class="btn btn-secondary btn-sm" data-goto-drawings="1">Gestionar planos</button></div>
+ return `<div class="readiness-associated-head"><div><strong>Planos requeridos para el hito</strong><span>${items.length?`${approved}/${requiredItems.length} con condición documental cumplida`:'Sin planos asociados (no configurado)'}</span></div>${state.mechanical.drawingCanEdit?`<button type="button" class="btn btn-secondary btn-sm" data-link-drawings="${esc(milestone.milestoneId)}">Seleccionar planos</button>`:''}</div>
  ${items.length?`<div class="readiness-packages-list">${items.map(x=>`<div class="readiness-package-row ${isReady(x)?'met':'blocking'}"><div><strong>${esc(x.code)}</strong><span>Rev. ${esc(x.revision||'—')} · ${esc(x.title)}</span></div><small>${esc(DRAWING_STATUS_LABELS[x.status]||x.status)}</small></div>`).join('')}</div>`:''}`;
 }
 function drawingStats() {
@@ -4747,26 +4761,54 @@ function renderDrawingOverview() {
     ['Planos',stats.total],['Aprobados ARUP',stats.approved],['Validados internamente',stats.internal],['Bloqueados / rechazados',stats.blocked]
   ].map(([label,n])=>`<div class="mechanical-top-kpi mech-drawing-kpi"><span>${esc(label)}</span><strong>${n}</strong></div>`).join('');
 }
+function drawingPriorityMap() {
+  const milestones = [...(state.mechanical.milestones||[])].sort((a,b)=>
+    (a.date||'9999-12-31').localeCompare(b.date||'9999-12-31'));
+  const byMilestone = new Map(milestones.map((m,i)=>[m.milestoneId,{...m,rank:i}]));
+  const priority = new Map();
+  for (const link of state.mechanical.drawingLinks) {
+    const m=byMilestone.get(link.milestoneId);
+    if(m && (!priority.has(link.drawingId) || m.rank<priority.get(link.drawingId).rank)) priority.set(link.drawingId,m);
+  }
+  return priority;
+}
+function drawingDone(x) {
+  return (x.type==='ARUP_REFERENCIA'||x.submittalRequired==='SI') ? x.status==='APROBADO_ARUP' : x.status==='VALIDADO_INTERNAMENTE';
+}
 function renderDrawings() {
   const m=state.mechanical,search=document.getElementById('mechDrawingSearch').value.toLowerCase().trim();
   const status=document.getElementById('mechDrawingStatus').value;
   const options=document.getElementById('mechDrawingStatus');
   if(options.options.length===1) Object.entries(DRAWING_STATUS_LABELS).forEach(([k,v])=>options.add(new Option(v,k)));
+  const priority=drawingPriorityMap();
+  const linkedCounts=new Map();
+  for(const l of m.drawingLinks) linkedCounts.set(l.drawingId,(linkedCounts.get(l.drawingId)||0)+1);
   const filtered=m.drawings.filter(x=>(!status||x.status===status)&&
-    (!search||[x.code,x.title,x.zone,x.draughtsman,x.engineer].join(' ').toLowerCase().includes(search)));
+    (!search||[x.code,x.title,x.zone,x.draughtsman,x.engineer].join(' ').toLowerCase().includes(search)))
+    .sort((a,b)=>{
+      const pa=priority.get(a.id),pb=priority.get(b.id);
+      if(!!pa!==!!pb) return pa?-1:1;
+      if(pa&&pb&&pa.rank!==pb.rank) return pa.rank-pb.rank;
+      if(drawingDone(a)!==drawingDone(b)) return drawingDone(a)?1:-1;
+      return (a.deadline||'9999-12-31').localeCompare(b.deadline||'9999-12-31') || (a.code||'').localeCompare(b.code||'');
+    });
   document.getElementById('mechDrawingRows').innerHTML=filtered.map(x=>{
-    const linked=m.drawingLinks.filter(l=>l.drawingId===x.id).length;
-    return `<tr><td><strong>${esc(x.code)}</strong><br><small>${esc(x.title)}</small></td><td>${esc(x.revision||'—')}</td>
-    <td>${esc(DRAWING_STATUS_LABELS[x.status]||x.status||'—')}</td><td>${esc(x.draughtsman||'—')}</td><td>${esc(x.engineer||'—')}</td>
-    <td>${esc(x.deadline||'—')}</td><td>${linked}</td><td><button type="button" class="btn btn-secondary btn-sm mech-drawing-action" data-drawing-id="${esc(x.id)}">Ver / editar</button></td></tr>`;
+    const milestone=priority.get(x.id),linked=linkedCounts.get(x.id)||0;
+    const type=x.type==='ARUP_REFERENCIA'?'ARUP · Original XX':x.submittalRequired==='SI'?'Levitec CM · Submittal':'Levitec CM · Instalación';
+    return `<tr><td><strong>${esc(x.code)}</strong><br><small>${esc(x.title)}</small><br><small>${esc(type)}</small></td>
+    <td>${esc(x.revision||'—')}</td><td>${esc(DRAWING_STATUS_LABELS[x.status]||x.status||'—')}</td>
+    <td>${esc(x.draughtsman||'—')}</td><td>${esc(x.engineer||'—')}</td>
+    <td>${esc(x.deadline||'—')}</td><td>${milestone?`<strong>${esc(milestone.title)}</strong><br><small>${esc(milestone.date||'Sin fecha')} · ${linked} hito(s)</small>`:'<span class="muted">Sin hito asociado</span>'}</td>
+    <td><button type="button" class="btn btn-secondary btn-sm mech-drawing-action" data-drawing-id="${esc(x.id)}">Ver / editar</button></td></tr>`;
   }).join('');
   document.getElementById('mechDrawingEmpty').textContent=filtered.length?'':m.drawingsLoaded?(m.drawings.length?'No hay planos que coincidan con los filtros.':'No hay planos importados para este proyecto. ZAZ091 está pendiente de recibir el tracker verificado; puedes crear planos nuevos manualmente.'):'Cargando…';
   document.querySelectorAll('[data-drawing-id]').forEach(btn=>btn.addEventListener('click',()=>openDrawingModal(m.drawings.find(x=>x.id===btn.dataset.drawingId))));
 }
 function renderMyDrawingPending() {
   const m=state.mechanical,me=drawingMe();
-  const pending=m.drawings.filter(x=>!((x.type==='ARUP_REFERENCIA'||x.submittalRequired==='SI') ? x.status==='APROBADO_ARUP' : x.status==='VALIDADO_INTERNAMENTE') &&
+  const pending=m.drawings.filter(x=>!drawingDone(x) &&
     [x.draughtsman,x.engineer,x.unblockOwner].some(v=>(v||'').toLowerCase().trim()===me));
+  const priority=drawingPriorityMap();pending.sort((a,b)=>(priority.get(a.id)?.rank??99999)-(priority.get(b.id)?.rank??99999));
   document.getElementById('mechMyPending').innerHTML=pending.length?pending.map(x=>
     `<div class="mech-pending-item"><strong>${esc(x.code)}</strong> · ${esc(x.title)}<br><small>${esc(DRAWING_STATUS_LABELS[x.status]||x.status)} · ${esc(x.deadline||'Sin fecha límite')}</small></div>`
   ).join(''):'No tienes planos pendientes asignados por correo electrónico en este proyecto.';
@@ -4789,7 +4831,7 @@ function openDrawingModal(item=null) {
   const milestones=m.milestones||[];
   const linked=new Set(m.drawingLinks.filter(x=>x.drawingId===item?.id).map(x=>x.milestoneId));
   document.getElementById('mechDrawingMilestoneChecks').innerHTML=milestones.length?milestones.map(x=>
-    `<label><input type="checkbox" name="drawingMilestone" value="${esc(x.milestoneId)}" ${linked.has(x.milestoneId)?'checked':''}>${esc(x.title)} · ${esc(x.date||'Sin fecha')}</label>`
+    `<label class="mech-milestone-option"><input type="checkbox" name="drawingMilestone" value="${esc(x.milestoneId)}" ${linked.has(x.milestoneId)?'checked':''}><span><strong>${esc(x.title)}</strong><small>${esc(x.date||'Sin fecha')}</small></span></label>`
   ).join(''):'No hay hitos Mechanical configurados para este proyecto.';
   const events=m.drawingHistory.filter(x=>x.drawingId===item?.id).slice(-40).reverse();
   document.getElementById('mechDrawingHistory').innerHTML=events.length?events.map(x=>
@@ -4834,7 +4876,57 @@ function handleDrawingMilestonesSave(payload) {
   postToBackend('mechanicalDrawingList',{projectId:state.currentProject.id});
 }
 
-el.mechanicalReadinessGrid.addEventListener('click',e=>{if(e.target.closest('[data-goto-drawings]'))setMechanicalTab('drawings');});
+el.mechanicalReadinessGrid.addEventListener('click',e=>{
+  const button=e.target.closest('[data-link-drawings]');
+  if(button) {openMilestoneDrawingSelector(button.dataset.linkDrawings);return;}
+  if(e.target.closest('[data-goto-drawings]'))setMechanicalTab('drawings');
+});
+function openMilestoneDrawingSelector(milestoneId) {
+  const m=state.mechanical, milestone=m.milestones.find(x=>x.milestoneId===milestoneId);
+  if(!milestone) return;
+  if(!m.drawingsLoaded) {setStatus(el.mechanicalStatus,'Espera a que termine de cargar el listado de planos.');return;}
+  const modal=document.getElementById('mechMilestoneDrawingModal');
+  modal.dataset.milestoneId=milestoneId;
+  document.getElementById('mechMilestoneDrawingTitle').textContent='Planos · '+milestone.title;
+  document.getElementById('mechMilestoneDrawingSearch').value='';
+  modal._selected=new Set(m.drawingLinks.filter(x=>x.milestoneId===milestoneId).map(x=>x.drawingId));
+  renderMilestoneDrawingSelector();modal.classList.remove('hidden');
+}
+function renderMilestoneDrawingSelector() {
+  const modal=document.getElementById('mechMilestoneDrawingModal'),m=state.mechanical;
+  const id=modal.dataset.milestoneId,search=document.getElementById('mechMilestoneDrawingSearch').value.toLowerCase().trim();
+  const linked=modal._selected||new Set();
+  const drawings=[...m.drawings].sort((a,b)=>Number(linked.has(b.id))-Number(linked.has(a.id)) || (a.code||'').localeCompare(b.code||''));
+  document.getElementById('mechMilestoneDrawingOptions').innerHTML=drawings.filter(x=>!search||[x.code,x.title].join(' ').toLowerCase().includes(search)).map(x=>
+    `<label class="mech-milestone-option"><input type="checkbox" value="${esc(x.id)}" ${linked.has(x.id)?'checked':''}><span><strong>${esc(x.code)}</strong><small>${esc(x.title)}</small></span></label>`).join('')||'No hay planos coincidentes.';
+}
+document.getElementById('mechMilestoneDrawingOptions').addEventListener('change',e=>{
+  if(e.target.matches('input[type=checkbox]')) {
+    const modal=document.getElementById('mechMilestoneDrawingModal');
+    if(e.target.checked) modal._selected.add(e.target.value);else modal._selected.delete(e.target.value);
+  }
+});
+document.getElementById('mechMilestoneDrawingSearch').addEventListener('input',renderMilestoneDrawingSelector);
+document.getElementById('mechMilestoneDrawingClose').addEventListener('click',()=>document.getElementById('mechMilestoneDrawingModal').classList.add('hidden'));
+document.getElementById('mechMilestoneDrawingSave').addEventListener('click',()=>{
+  const modal=document.getElementById('mechMilestoneDrawingModal');
+  if(!state.mechanical.drawingCanEdit) return;
+  const id=modal.dataset.milestoneId;
+  document.getElementById('mechMilestoneDrawingSave').disabled=true;
+  postToBackend('mechanicalMilestoneDrawingsSaveBatch',{
+    projectId:state.currentProject.id,milestoneId:id,drawingIds:[...modal._selected]
+  });
+});
+function handleMilestoneDrawingsBatch(payload) {
+  document.getElementById('mechMilestoneDrawingSave').disabled=false;
+  if(!payload?.ok) {setStatus(el.mechanicalStatus,payload?.message||'Error al asociar planos.','error');return;}
+  if(payload.projectId!==state.currentProject?.id) return;
+  const m=state.mechanical,id=payload.milestoneId;
+  m.drawingLinks=m.drawingLinks.filter(x=>x.milestoneId!==id);
+  m.drawingLinks.push(...(payload.drawingIds||[]).map(drawingId=>({milestoneId:id,drawingId})));
+  document.getElementById('mechMilestoneDrawingModal').classList.add('hidden');
+  renderMechanicalReadiness();renderDrawings();renderMyDrawingPending();
+}
 drawingForm().elements.code.addEventListener('input',drawingUpdateClassification);
 drawingForm().elements.submittalRequired.addEventListener('change',drawingUpdateClassification);
 document.querySelectorAll('[data-mech-tab]').forEach(btn=>btn.addEventListener('click',()=>setMechanicalTab(btn.dataset.mechTab)));
