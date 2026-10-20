@@ -700,6 +700,12 @@ window.addEventListener('message', event => {
     case 'deliveryList':
       handleDeliveryList(msg.payload);
       break;
+    case 'warehouseSyncConfirmedOrders':
+      handleWarehouseSyncConfirmedOrders(msg.payload);
+      break;
+    case 'warehouseOrderProgress':
+      handleWarehouseOrderProgress(msg.payload);
+      break;
     case 'deliveryCommentsList':
       handleDeliveryCommentsList(msg.payload);
       break;
@@ -3338,7 +3344,7 @@ function handlePurchaseMutation(payload) {
   setStatus(
     el.purchaseStatus,
     payload.message || 'Guardado correctamente.',
-    payload.emailSent === false ? 'error' : 'success'
+    payload.emailSent === false || payload.warehouseSync?.ok === false ? 'error' : 'success'
   );
 
   postToBackend('purchaseList', {
@@ -3381,6 +3387,8 @@ function handleDeliveryList(payload) {
   renderConstructionMilestones();
   renderDeliveryCalendar();
   renderDeliveryList();
+  state.warehouseOrderProgress = {};
+  postToBackend('warehouseOrderProgress', {projectId:state.currentProject.id});
 }
 
 function todayIso() {
@@ -3507,7 +3515,7 @@ function renderDeliveryList() {
         <span>${esc(item.requestId)} · ${esc(item.poNumber || 'PO pendiente')}</span>
       </div>
       <div class="delivery-data"><span>Familia</span><strong>${esc(item.family || '—')}</strong></div>
-      <div class="delivery-data"><span>Destino</span><strong>${esc(item.destination || '—')}</strong></div>
+      <div class="delivery-data"><span>Destino</span><strong>${esc(item.destination || '—')}</strong><small>${esc(warehouseDeliveryProgressText_(item))}</small></div>
       <div class="delivery-data"><span>Hito</span><strong>${esc(deliveryMilestoneTitles(item) || 'Sin referencia')}</strong><small>${esc(deliveryMilestoneDeltaText(item))}</small></div>
       <div><span class="delivery-date-pill ${dateClass}">${esc(item.expectedDeliveryDate || 'Sin fecha')}</span></div>
       <button class="btn btn-secondary btn-sm open-delivery-btn" type="button">Abrir</button>
@@ -5021,4 +5029,44 @@ document.getElementById('mechDrawingClose').addEventListener('click',closeDrawin
 document.getElementById('mechDrawingCancel').addEventListener('click',closeDrawingModal);
 document.getElementById('mechDrawingBackdrop').addEventListener('click',closeDrawingModal);
 document.getElementById('mechDrawingForm').addEventListener('submit',submitDrawing);
+function warehouseDeliveryProgressText_(item){
+  if(item.purchaseStatus!=='CONFIRMADO_PROVEEDOR')return 'Pendiente de confirmación';
+  const order=state.warehouseOrderProgress?.[item.requestId];
+  if(!order)return 'Sin recepción sincronizada';
+  const lines=order.lines||[];
+  const pending=lines.filter(l=>Number(l.pending)>0).length;
+  return order.receiptStatus==='COMPLETA'?'Warehouse: recibido completo':
+    order.receiptStatus==='PARCIAL'?'Warehouse: parcial · '+pending+' líneas pendientes':
+    'Warehouse: pendiente · '+pending+' líneas';
+}
+function handleWarehouseOrderProgress(payload){
+  if(!payload?.ok){
+    const info=$('warehouseSyncOrdersInfo');
+    if(info)info.textContent='No se ha podido consultar el estado de Warehouse: '+(payload?.message||'Error');
+    return;
+  }
+  if(payload.projectId!==state.currentProject?.id)return;
+  state.warehouseOrderProgress=Object.fromEntries((payload.orders||[]).map(o=>[o.requestId,o]));
+  renderDeliveryList();
+}
+function handleWarehouseSyncConfirmedOrders(payload){
+  const btn=$('warehouseSyncOrdersBtn'),info=$('warehouseSyncOrdersInfo');
+  if(btn)btn.disabled=false;
+  if(!info)return;
+  if(!payload?.ok){info.textContent='Error de sincronización: '+(payload?.message||'Error');return;}
+  info.textContent=payload.message+' '+(payload.failed?'Revisa las incidencias en el resumen que aparece a continuación.':'');
+  if(payload.failed){
+    const errors=(payload.results||[]).filter(r=>r.ok===false).map(r=>r.requestId+': '+r.error).slice(0,12);
+    info.textContent+=' '+errors.join(' | ');
+  }
+  postToBackend('warehouseOrderProgress',{projectId:state.currentProject.id});
+}
+$('warehouseSyncOrdersBtn')?.addEventListener('click',()=>{
+  if(!state.currentProject)return;
+  const btn=$('warehouseSyncOrdersBtn');
+  if(btn.disabled)return;
+  btn.disabled=true;
+  $('warehouseSyncOrdersInfo').textContent='Sincronizando pedidos confirmados…';
+  postToBackend('warehouseSyncConfirmedOrders',{projectId:state.currentProject.id});
+});
 })();
