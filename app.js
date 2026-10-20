@@ -4814,9 +4814,13 @@ function renderMyDrawingPending() {
   ).join(''):'No tienes planos pendientes asignados por correo electrónico en este proyecto.';
 }
 function drawingForm() {return document.getElementById('mechDrawingForm');}
-function closeDrawingModal() {document.getElementById('mechDrawingModal').classList.add('hidden');}
+function closeDrawingModal() {
+  document.getElementById('mechDrawingModal').classList.add('hidden');
+}
 function openDrawingModal(item=null) {
   const m=state.mechanical,form=drawingForm();form.reset();m.drawingEditing=item||null;
+  document.getElementById('mechDrawingSave').disabled=false;
+  document.getElementById('mechDrawingSave').textContent='Guardar plano';
   document.getElementById('mechDrawingModalTitle').textContent=item?'Plano · '+item.code:'Nuevo plano';
   document.getElementById('mechDrawingFormStatus').classList.add('hidden');
   const select=document.getElementById('mechDrawingEditStatus');select.innerHTML='';
@@ -4851,29 +4855,55 @@ function drawingUpdateClassification() {
   document.getElementById('mechDrawingClassification').value=isXX?'ARUP · Plano original de proyecto (XX)':isCM?'Levitec · Plano elaborado por nosotros (CM)':'Código sin segmento XX/CM';
 }
 function submitDrawing(event) {
-  event.preventDefault();const m=state.mechanical,form=drawingForm();
+  event.preventDefault();
+  const m=state.mechanical,form=drawingForm();
+  const save=document.getElementById('mechDrawingSave');
+  // Impedir doble guardado mientras se espera la confirmación del backend.
+  if(save.disabled || m.drawingSaveInFlight) return;
   const data=Object.fromEntries(new FormData(form).entries());
   delete data.drawingMilestone;
   if(form.elements.submittalRequired.disabled) data.submittalRequired='SI';
   const selected=[...form.querySelectorAll('input[name="drawingMilestone"]:checked')].map(x=>x.value);
-  m.drawingPendingLinks=selected;
   data.projectId=state.currentProject.id;data.id=m.drawingEditing?.id||'';
   data.expectedUpdatedAt=m.drawingEditing?.updatedAt||'';
-  const save=document.getElementById('mechDrawingSave');save.disabled=true;
+  m.drawingSaveInFlight=true;
+  m.drawingSaveContext={projectId:data.projectId,milestoneIds:selected};
+  save.disabled=true;save.textContent='Guardando…';
+  document.getElementById('mechDrawingFormStatus').classList.add('hidden');
   postToBackend('mechanicalDrawingSave',data);
 }
 function handleDrawingSave(payload) {
-  const save=document.getElementById('mechDrawingSave');save.disabled=false;
-  if(!payload?.ok){setStatus(document.getElementById('mechDrawingFormStatus'),payload?.message||'Error al guardar plano.','error');return;}
+  const m=state.mechanical,context=m.drawingSaveContext;
+  m.drawingSaveInFlight=false;
+  const save=document.getElementById('mechDrawingSave');
+  save.disabled=false;save.textContent='Guardar plano';
+  if(!context || context.projectId!==state.currentProject?.id) return;
+  if(!payload?.ok) {
+    setStatus(document.getElementById('mechDrawingFormStatus'),payload?.message||'Error al guardar plano.','error');
+    return;
+  }
+  // El registro YA se ha guardado: cerrar de inmediato, sin esperar a asociar hitos.
+  closeDrawingModal();
+  m.drawingSaveContext=null;
+  m.drawingLinksSaveContext={projectId:context.projectId,drawingId:payload.drawingId};
+  setStatus(el.mechanicalStatus,'Plano guardado. Actualizando hitos asociados…','info');
   postToBackend('mechanicalDrawingMilestonesSave',{
-    projectId:state.currentProject.id,drawingId:payload.drawingId,milestoneIds:state.mechanical.drawingPendingLinks||[]
+    projectId:context.projectId,drawingId:payload.drawingId,milestoneIds:context.milestoneIds
   });
 }
 function handleDrawingMilestonesSave(payload) {
-  if(!payload?.ok){setStatus(document.getElementById('mechDrawingFormStatus'),
-    'El plano se guardó, pero falló la asociación de hitos: '+(payload?.message||'Error'),'error');return;}
-  closeDrawingModal();state.mechanical.drawingPendingLinks=null;
-  postToBackend('mechanicalDrawingList',{projectId:state.currentProject.id});
+  const m=state.mechanical,context=m.drawingLinksSaveContext;
+  m.drawingLinksSaveContext=null;
+  if(!context || context.projectId!==state.currentProject?.id) return;
+  if(!payload?.ok) {
+    setStatus(el.mechanicalStatus,
+      'El plano se guardó, pero NO se pudieron actualizar sus hitos: '+(payload?.message||'Error')+'. Comprueba las asociaciones antes de volver a editar.','error');
+  } else {
+    setStatus(el.mechanicalStatus,'Plano e hitos asociados guardados correctamente.','success');
+  }
+  // Recuperar versión y asociaciones vigentes; nunca reutilizar la versión anterior.
+  m.drawingsLoading=true;
+  postToBackend('mechanicalDrawingList',{projectId:context.projectId});
 }
 
 el.mechanicalReadinessGrid.addEventListener('click',e=>{
