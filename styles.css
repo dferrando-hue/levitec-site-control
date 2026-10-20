@@ -3048,3 +3048,6 @@ button{cursor:pointer}
   #subcontractModal .planning-buttons{justify-content:stretch}
   #subcontractModal .planning-buttons .btn{flex:1 1 auto}
 }
+
+/* Mechanical document control v0.19 */
+.mechanical-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.mechanical-tab{border:1px solid var(--border,#d5e0e2);background:var(--surface,#fff);border-radius:9px;padding:10px 14px;cursor:pointer;font-weight:600;color:inherit}.mechanical-tab.active{background:#087f7b;color:#fff;border-color:#087f7b}.mech-overview-note{margin:10px 0;color:var(--text-muted,#65747a)}.mech-check-list{max-height:180px;overflow:auto;display:grid;gap:8px}.mech-check-list label{display:flex;gap:10px;align-items:center;font-weight:400}.mech-history{max-height:200px;overflow:auto;font-size:12px;line-height:1.7}.mech-history-item{border-bottom:1px solid #e5eded;padding:6px 0}.mech-drawing-link{color:#087f7b;text-decoration:underline}.mech-pending-item{padding:10px;border-bottom:1px solid #dfe8e8}.mech-drawing-kpi{min-width:140px}.mech-overdue{color:#aa3e30;font-weight:700}.mech-drawing-action{white-space:nowrap}
