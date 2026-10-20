@@ -739,12 +739,12 @@ window.addEventListener('message', event => {
     case 'mechanicalSubmittalSave':
     case 'mechanicalSubmittalDelete':
     case 'milestoneSubmittalLinksSaveBatch':
-      handleMechanicalMutation(msg.payload);
+      handleMechanicalMutation(msg.payload,msg.type);
       break;
     case 'fokProjectSave':
     case 'fokCopyDocumentation':
     case 'milestoneFokLinksSaveBatch':
-      handleMechanicalMutation(msg.payload);
+      handleMechanicalMutation(msg.payload,msg.type);
       break;
 
     case 'workControlBootstrap':
@@ -817,6 +817,11 @@ window.addEventListener('message', event => {
         setStatus(el.warehouseStatus, msg.payload?.message || 'Error de servidor.', 'error');
       }
       if (!el.mechanicalView.classList.contains('hidden')) {
+        for(const action of [...mechanicalSaveLocks.keys()]) mechanicalSaveFinish(action,false,msg.payload?.message);
+        if(state.mechanical.drawingSaveInFlight) {
+          state.mechanical.drawingSaveInFlight=false;
+          const btn=document.getElementById('mechDrawingSave');btn.disabled=false;btn.textContent='Guardar plano';
+        }
         setStatus(el.mechanicalStatus, msg.payload?.message || 'Error de Mechanical.', 'error');
       }
       if (!el.workControlView.classList.contains('hidden')) {
@@ -1163,6 +1168,7 @@ function renderModules() {
 /* MECHANICAL · SUBMITTALS INDIVIDUALES / READINESS POR HITO */
 function openMechanical() {
   if (!state.currentProject) return;
+  mechanicalSaveResetForProject();
 
   show(el.mechanicalView);
   el.mechanicalProjectSubtitle.textContent =
@@ -1694,7 +1700,35 @@ function renderFokTracker() {
 }
 
 
+// MECHANICAL: one active save per action. Never allow a second click before acknowledgement.
+const mechanicalSaveLocks = new Map();
+function mechanicalSaveStart(action, button, modal) {
+  if (mechanicalSaveLocks.has(action)) return false;
+  const projectId=state.currentProject?.id;
+  if (!projectId) return false;
+  mechanicalSaveLocks.set(action,{button,modal,projectId,label:button?.textContent||'Guardar'});
+  if(button){button.disabled=true;button.textContent='Guardando…';button.setAttribute('aria-busy','true');}
+  return true;
+}
+function mechanicalSaveFinish(action,success,message) {
+  const pending=mechanicalSaveLocks.get(action);
+  if(!pending) return false;
+  mechanicalSaveLocks.delete(action);
+  if(pending.button){pending.button.disabled=false;pending.button.textContent=pending.label;pending.button.removeAttribute('aria-busy');}
+  if(pending.projectId!==state.currentProject?.id) return false;
+  if(success && pending.modal) pending.modal.classList.add('hidden');
+  if(!success) setStatus(el.mechanicalStatus,message||'No se ha podido guardar. Comprueba los datos y vuelve a intentarlo.','error');
+  return true;
+}
+function mechanicalSaveResetForProject() {
+  for(const pending of mechanicalSaveLocks.values()) {
+    if(pending.button){pending.button.disabled=false;pending.button.textContent=pending.label;pending.button.removeAttribute('aria-busy');}
+  }
+  mechanicalSaveLocks.clear();
+}
+
 function openFokEditModal(item) {
+  if(mechanicalSaveLocks.has('fokProjectSave')) return;
   state.mechanical.selectedFok = item;
   el.fokEditId.value = item.fokId;
   el.fokEditTitle.textContent = `${item.fokId} · ${item.benchmarkName}`;
@@ -1711,6 +1745,7 @@ function openFokEditModal(item) {
 
 
 function closeFokEditModal() {
+  if(mechanicalSaveLocks.has('fokProjectSave')) return;
   el.fokEditModal.classList.add('hidden');
   state.mechanical.selectedFok = null;
 }
@@ -1720,6 +1755,8 @@ function submitFokEdit(event) {
   event.preventDefault();
   const item = state.mechanical.selectedFok;
   if (!item || !state.currentProject) return;
+  if(checkSessionExpiry_()) return;
+  if(!mechanicalSaveStart('fokProjectSave',el.fokEditForm.querySelector('[type=submit]'),el.fokEditModal)) return;
 
   postToBackend('fokProjectSave', {
     projectId:state.currentProject.id,
@@ -1764,6 +1801,7 @@ function openMilestoneFokModal(milestone) {
 
 
 function closeMilestoneFokModal() {
+  if(mechanicalSaveLocks.has('milestoneFokLinksSaveBatch')) return;
   el.milestoneFokModal.classList.add('hidden');
   state.mechanical.selectedFokMilestone = null;
   state.mechanical.fokDraftSelection = new Set();
@@ -1838,6 +1876,8 @@ function saveMilestoneFokLinks() {
   const milestone = state.mechanical.selectedFokMilestone;
   if (!milestone || !state.currentProject) return;
 
+  if(checkSessionExpiry_()) return;
+  if(!mechanicalSaveStart('milestoneFokLinksSaveBatch',el.saveMilestoneFokBtn,el.milestoneFokModal)) return;
   postToBackend('milestoneFokLinksSaveBatch', {
     projectId:state.currentProject.id,
     milestoneId:milestone.milestoneId,
@@ -1899,6 +1939,7 @@ function openMechanicalSubmittalModal(item = null) {
 
 
 function closeMechanicalSubmittalModal() {
+  if(mechanicalSaveLocks.has('mechanicalSubmittalSave')) return;
   el.mechanicalSubmittalModal.classList.add('hidden');
   state.mechanical.selectedSubmittal = null;
 }
@@ -1919,6 +1960,8 @@ function submitMechanicalSubmittal(event) {
     return;
   }
 
+  if(checkSessionExpiry_()) return;
+  if(!mechanicalSaveStart('mechanicalSubmittalSave',el.mechanicalSubmittalForm.querySelector('[type=submit]'),el.mechanicalSubmittalModal)) return;
   postToBackend('mechanicalSubmittalSave', {
     projectId:state.currentProject.id,
     submittalId:el.mechanicalSubmittalId.value,
@@ -1971,6 +2014,7 @@ function openMilestoneSubmittalModal(milestone) {
 
 
 function closeMilestoneSubmittalModal() {
+  if(mechanicalSaveLocks.has('milestoneSubmittalLinksSaveBatch')) return;
   el.milestoneSubmittalModal.classList.add('hidden');
   state.mechanical.selectedMilestone = null;
   state.mechanical.milestoneDraftSelection = new Set();
@@ -2083,6 +2127,8 @@ function saveMilestoneSubmittalLinks() {
   const milestone = state.mechanical.selectedMilestone;
   if (!milestone || !state.currentProject) return;
 
+  if(checkSessionExpiry_()) return;
+  if(!mechanicalSaveStart('milestoneSubmittalLinksSaveBatch',el.saveMilestoneSubmittalLinksBtn,el.milestoneSubmittalModal)) return;
   postToBackend('milestoneSubmittalLinksSaveBatch', {
     projectId:state.currentProject.id,
     milestoneId:milestone.milestoneId,
@@ -2091,18 +2137,26 @@ function saveMilestoneSubmittalLinks() {
 }
 
 
-function handleMechanicalMutation(payload) {
-  if (!payload?.ok) {
-    setStatus(el.mechanicalStatus, payload?.message || 'No se ha podido guardar el cambio.', 'error');
+function handleMechanicalMutation(payload,action) {
+  const success=payload?.ok===true;
+  const hadLock=mechanicalSaveLocks.has(action);
+  if(hadLock) mechanicalSaveFinish(action,success,payload?.message);
+  if(!success) {
+    if(!hadLock) setStatus(el.mechanicalStatus,payload?.message||'No se ha podido guardar el cambio.','error');
     return;
   }
-
-  closeMechanicalSubmittalModal();
-  closeMilestoneSubmittalModal();
-  setStatus(el.mechanicalStatus, payload.message || 'Cambio guardado.', 'success');
-
-  // Cargar readiness y después planos: el transporte usa un único iframe de respuesta.
-  postToBackend('mechanicalReadiness', {projectId:state.currentProject.id});
+  // Acknowledge immediately; never keep the dialog open waiting for the expensive refresh.
+  if(action==='fokProjectSave') state.mechanical.selectedFok=null;
+  if(action==='milestoneFokLinksSaveBatch') state.mechanical.selectedFokMilestone=null;
+  if(action==='mechanicalSubmittalSave') state.mechanical.selectedSubmittal=null;
+  if(action==='milestoneSubmittalLinksSaveBatch') state.mechanical.selectedMilestone=null;
+  if(!hadLock) {
+    closeMechanicalSubmittalModal();
+    closeMilestoneSubmittalModal();
+  }
+  setStatus(el.mechanicalStatus,(payload.message||'Guardado correctamente.')+' Actualizando datos…','success');
+  // Refresh in the background. This is not part of the save transaction.
+  if(state.currentProject) postToBackend('mechanicalReadiness',{projectId:state.currentProject.id});
 }
 
 
