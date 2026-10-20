@@ -83,7 +83,7 @@ const state = {
     fokDraftSelection: new Set(),
     drawings: [], drawingLinks: [], drawingHistory: [], drawingsLoaded: false,
     drawingCanEdit: false, drawingCanValidate: false, drawingEditing: null,
-    drawingPendingLinks: null, drawingTab: 'overview'
+    drawingPendingLinks: null, drawingTab: 'milestones'
   }
 };
 
@@ -716,6 +716,9 @@ window.addEventListener('message', event => {
       handleDeliveryMutation(msg.payload);
       break;
 
+    case 'mechanicalDrawingHistory':
+      handleDrawingHistory(msg.payload);
+      break;
     case 'mechanicalDrawingList':
       handleDrawingList(msg.payload);
       break;
@@ -1163,7 +1166,8 @@ function openMechanical() {
 
   state.mechanical.drawingsLoaded = false;
   state.mechanical.drawings = [];
-  setMechanicalTab('overview');
+  state.mechanical.drawingsLoading = true; // Evitar llamadas simultáneas durante la carga inicial.
+  setMechanicalTab('milestones');
   setStatus(el.mechanicalStatus, 'Cargando preparación documental…');
   postToBackend('mechanicalReadiness', {
     projectId:state.currentProject.id
@@ -1196,7 +1200,11 @@ function handleMechanicalReadiness(payload) {
   populateFokFilters();
   renderFokTracker();
   renderDrawingOverview();
-  postToBackend('mechanicalDrawingList', {projectId:state.currentProject.id});
+  state.mechanical.drawingsLoading=false;
+  if(['milestones','drawings','pending'].includes(state.mechanical.drawingTab)) {
+    state.mechanical.drawingsLoading=true;
+    postToBackend('mechanicalDrawingList',{projectId:state.currentProject.id});
+  }
   clearStatus(el.mechanicalStatus);
 }
 
@@ -4689,31 +4697,39 @@ function setMechanicalTab(tab) {
   state.mechanical.drawingTab = tab;
   document.querySelectorAll('[data-mech-tab]').forEach(x=>x.classList.toggle('active',x.dataset.mechTab===tab));
   document.querySelectorAll('[data-mech-panel]').forEach(x=>x.classList.toggle('hidden',x.dataset.mechPanel!==tab));
-  document.getElementById('mechDrawingOverview').classList.toggle('hidden',tab!=='overview');
+  // La información general pertenece ahora a Hitos constructivos.
   el.newMechanicalSubmittalBtn.classList.toggle('hidden',tab!=='submittals'||!state.mechanical.canEdit);
-  if(tab==='drawings' && !state.mechanical.drawingsLoaded && state.currentProject)
-    postToBackend('mechanicalDrawingList',{projectId:state.currentProject.id});
+  if((tab==='drawings'||tab==='milestones'||tab==='pending') && !state.mechanical.drawingsLoaded && state.currentProject && !state.mechanical.drawingsLoading)
+    { state.mechanical.drawingsLoading=true; postToBackend('mechanicalDrawingList',{projectId:state.currentProject.id}); }
   if(tab==='pending') renderMyDrawingPending();
 }
 function drawingMe() {return (state.bootstrap?.user?.email||'').toLowerCase();}
 function handleDrawingList(payload) {
+  state.mechanical.drawingsLoading=false;
   if(!payload?.ok) {setStatus(el.mechanicalStatus,payload?.message||'Error al cargar planos.','error');return;}
   if(payload.projectId!==state.currentProject?.id) return;
   const m=state.mechanical;
-  m.drawings=payload.drawings||[];m.drawingLinks=payload.links||[];m.drawingHistory=payload.history||[];
+  m.drawings=payload.drawings||[];m.drawingLinks=payload.links||[];m.drawingHistory=[];
   m.drawingCanEdit=!!payload.canEdit;m.drawingCanValidate=!!payload.canValidate;m.drawingsLoaded=true;
   document.getElementById('mechNewDrawing').classList.toggle('hidden',!m.drawingCanEdit);
   renderDrawingOverview();renderDrawings();renderMyDrawingPending();
   if(state.mechanical.milestones.length) renderMechanicalReadiness();
 }
+function handleDrawingHistory(payload) {
+  if(!payload?.ok || !state.mechanical.drawingEditing || payload.drawingId!==state.mechanical.drawingEditing.id) return;
+  const events=payload.history||[];
+  document.getElementById('mechDrawingHistory').innerHTML=events.length?events.slice(-40).reverse().map(x=>
+    `<div class="mech-history-item">${esc(x.at)} · ${esc(x.actor)} · ${esc(x.event)}<br>${esc(x.from||'—')} → ${esc(x.to||'—')} · Rev. ${esc(x.revision||'—')} · ${esc(x.detail||'')}</div>`
+  ).join(''):'Sin historial registrado.';
+}
 function renderMilestoneDrawingGate(milestone) {
  const links=state.mechanical.drawingLinks.filter(x=>x.milestoneId===milestone.milestoneId);
  const items=links.map(l=>state.mechanical.drawings.find(x=>x.id===l.drawingId)).filter(Boolean);
- const isReady=x=>x.type==='ARUP_REFERENCIA' ? false : (x.submittalRequired==='SI' ? x.status==='APROBADO_ARUP' : x.status==='VALIDADO_INTERNAMENTE');
- const requiredItems=items.filter(x=>x.type!=='ARUP_REFERENCIA');
+ const isReady=x=>(x.type==='ARUP_REFERENCIA'||x.submittalRequired==='SI') ? x.status==='APROBADO_ARUP' : x.status==='VALIDADO_INTERNAMENTE';
+ const requiredItems=items;
  const approved=requiredItems.filter(isReady).length;
- return `<div class="readiness-associated-head"><div><strong>Planos requeridos para el hito</strong><span>${items.length?`${approved}/${requiredItems.length} con condición documental cumplida · ${items.length-requiredItems.length} referencias ARUP`:'Sin planos asociados (no configurado)'}</span></div><button type="button" class="btn btn-secondary btn-sm" data-goto-drawings="1">Gestionar planos</button></div>
- ${items.length?`<div class="readiness-packages-list">${items.map(x=>`<div class="readiness-package-row ${(x.type==='ARUP_REFERENCIA'||isReady(x))?'met':'blocking'}"><div><strong>${esc(x.code)}</strong><span>Rev. ${esc(x.revision||'—')} · ${esc(x.title)}</span></div><small>${esc(DRAWING_STATUS_LABELS[x.status]||x.status)}</small></div>`).join('')}</div>`:''}`;
+ return `<div class="readiness-associated-head"><div><strong>Planos requeridos para el hito</strong><span>${items.length?`${approved}/${requiredItems.length} con condición documental cumplida`:'Sin planos asociados (no configurado)'}</span></div><button type="button" class="btn btn-secondary btn-sm" data-goto-drawings="1">Gestionar planos</button></div>
+ ${items.length?`<div class="readiness-packages-list">${items.map(x=>`<div class="readiness-package-row ${isReady(x)?'met':'blocking'}"><div><strong>${esc(x.code)}</strong><span>Rev. ${esc(x.revision||'—')} · ${esc(x.title)}</span></div><small>${esc(DRAWING_STATUS_LABELS[x.status]||x.status)}</small></div>`).join('')}</div>`:''}`;
 }
 function drawingStats() {
   const ds=state.mechanical.drawings;
@@ -4744,12 +4760,12 @@ function renderDrawings() {
     <td>${esc(DRAWING_STATUS_LABELS[x.status]||x.status||'—')}</td><td>${esc(x.draughtsman||'—')}</td><td>${esc(x.engineer||'—')}</td>
     <td>${esc(x.deadline||'—')}</td><td>${linked}</td><td><button type="button" class="btn btn-secondary btn-sm mech-drawing-action" data-drawing-id="${esc(x.id)}">Ver / editar</button></td></tr>`;
   }).join('');
-  document.getElementById('mechDrawingEmpty').textContent=filtered.length?'':m.drawingsLoaded?'No hay planos que coincidan con los filtros.':'Cargando…';
+  document.getElementById('mechDrawingEmpty').textContent=filtered.length?'':m.drawingsLoaded?(m.drawings.length?'No hay planos que coincidan con los filtros.':'No hay planos importados para este proyecto. ZAZ091 está pendiente de recibir el tracker verificado; puedes crear planos nuevos manualmente.'):'Cargando…';
   document.querySelectorAll('[data-drawing-id]').forEach(btn=>btn.addEventListener('click',()=>openDrawingModal(m.drawings.find(x=>x.id===btn.dataset.drawingId))));
 }
 function renderMyDrawingPending() {
   const m=state.mechanical,me=drawingMe();
-  const pending=m.drawings.filter(x=>x.type!=='ARUP_REFERENCIA' && !(x.submittalRequired==='SI' ? x.status==='APROBADO_ARUP' : x.status==='VALIDADO_INTERNAMENTE') &&
+  const pending=m.drawings.filter(x=>!((x.type==='ARUP_REFERENCIA'||x.submittalRequired==='SI') ? x.status==='APROBADO_ARUP' : x.status==='VALIDADO_INTERNAMENTE') &&
     [x.draughtsman,x.engineer,x.unblockOwner].some(v=>(v||'').toLowerCase().trim()===me));
   document.getElementById('mechMyPending').innerHTML=pending.length?pending.map(x=>
     `<div class="mech-pending-item"><strong>${esc(x.code)}</strong> · ${esc(x.title)}<br><small>${esc(DRAWING_STATUS_LABELS[x.status]||x.status)} · ${esc(x.deadline||'Sin fecha límite')}</small></div>`
@@ -4778,7 +4794,8 @@ function openDrawingModal(item=null) {
   const events=m.drawingHistory.filter(x=>x.drawingId===item?.id).slice(-40).reverse();
   document.getElementById('mechDrawingHistory').innerHTML=events.length?events.map(x=>
     `<div class="mech-history-item">${esc(x.at)} · ${esc(x.actor)} · ${esc(x.event)}<br>${esc(x.from||'—')} → ${esc(x.to||'—')} · Rev. ${esc(x.revision||'—')} · ${esc(x.detail||'')}</div>`
-  ).join(''):'Sin historial registrado.';
+  ).join(''):(item?'Cargando historial…':'Sin historial registrado.');
+  if(item) postToBackend('mechanicalDrawingHistory',{projectId:state.currentProject.id,drawingId:item.id});
   form.querySelectorAll('input,select,textarea').forEach(x=>{x.disabled=!m.drawingCanEdit;});
   document.getElementById('mechDrawingSave').classList.toggle('hidden',!m.drawingCanEdit);
   document.getElementById('mechDrawingModal').classList.remove('hidden');
@@ -4788,14 +4805,14 @@ function drawingUpdateClassification() {
   const isXX=code.includes('XX'),isCM=code.includes('CM');
   const required=f.elements.submittalRequired;
   required.disabled=isXX || !state.mechanical.drawingCanEdit;
-  if(isXX)required.value='NO';
-  document.getElementById('mechDrawingClassification').value=isXX?'XX · Referencia ARUP':isCM?(required.value==='SI'?'CM · Levitec para submittal':'CM · Levitec interno'):'Código sin segmento XX/CM';
+  if(isXX)required.value='SI';
+  document.getElementById('mechDrawingClassification').value=isXX?'ARUP · Plano original de proyecto (XX)':isCM?'Levitec · Plano elaborado por nosotros (CM)':'Código sin segmento XX/CM';
 }
 function submitDrawing(event) {
   event.preventDefault();const m=state.mechanical,form=drawingForm();
   const data=Object.fromEntries(new FormData(form).entries());
   delete data.drawingMilestone;
-  if(form.elements.submittalRequired.disabled) data.submittalRequired='NO';
+  if(form.elements.submittalRequired.disabled) data.submittalRequired='SI';
   const selected=[...form.querySelectorAll('input[name="drawingMilestone"]:checked')].map(x=>x.value);
   m.drawingPendingLinks=selected;
   data.projectId=state.currentProject.id;data.id=m.drawingEditing?.id||'';

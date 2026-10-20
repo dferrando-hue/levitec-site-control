@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=0.19.0">
+  <link rel="stylesheet" href="styles.css?v=0.19.2">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -352,15 +352,14 @@
   <div id="mechanicalStatus" class="status hidden"></div>
 
   <nav class="mechanical-tabs" aria-label="Apartados Mechanical">
-    <button type="button" class="mechanical-tab active" data-mech-tab="overview">Dashboard</button>
-    <button type="button" class="mechanical-tab" data-mech-tab="milestones">Hitos constructivos</button>
+    <button type="button" class="mechanical-tab active" data-mech-tab="milestones">Hitos constructivos</button>
     <button type="button" class="mechanical-tab" data-mech-tab="submittals">Submittals</button>
     <button type="button" class="mechanical-tab" data-mech-tab="foks">FOK</button>
     <button type="button" class="mechanical-tab" data-mech-tab="drawings">Planos</button>
     <button type="button" class="mechanical-tab" data-mech-tab="pending">Mis pendientes</button>
   </nav>
-  <div id="mechDrawingOverview" class="mech-overview-note"></div>
-  <div class="mechanical-top-kpis" data-mech-panel="overview">
+  <div id="mechDrawingOverview" class="mech-overview-note" data-mech-panel="milestones"></div>
+  <div class="mechanical-top-kpis" data-mech-panel="milestones">
     <div class="mechanical-top-kpi">
       <span>HITOS CON SEGUIMIENTO</span>
       <strong id="mechanicalMilestoneCount">0</strong>
@@ -387,7 +386,7 @@
     <div>
       <div class="eyebrow">HITOS CONSTRUCTIVOS</div>
       <h2>Preparación documental por hito</h2>
-      <p class="muted">Cada hito exige únicamente los submittals que realmente aplican a esa actividad.</p>
+      <p class="muted">Seguimiento conjunto de submittals, FOK y planos asociados a cada hito. La ausencia de asociaciones no implica aprobación.</p>
     </div>
   </div>
 
@@ -1421,7 +1420,7 @@
         <div class="delivery-action-block">
           <div class="eyebrow">REPROGRAMAR</div>
           <label><span>Fecha prevista de entrega</span><input id="deliveryDateInput" type="date"></label>
-          <label><span>Motivo del cambio</span><textarea id="deliveryChangeReason" rows="3" placeholder="Ej. ajuste con proveedor por secuencia de obra"></textarea></label>
+          <label><span>Motivo del cambio (para historial)</span><textarea id="deliveryChangeReason" rows="3" placeholder="Ej. ajuste con proveedor por secuencia de obra"></textarea></label>
           <button id="saveDeliveryDateBtn" class="btn btn-primary" type="button">Actualizar fecha</button>
         </div>
 
@@ -1469,22 +1468,22 @@ window.LEVITEC_CONFIG = {
 
 <div id="mechDrawingModal" class="modal hidden"><div class="modal-backdrop" id="mechDrawingBackdrop"></div><div class="modal-card mechanical-submittal-modal" role="dialog" aria-modal="true" aria-labelledby="mechDrawingModalTitle">
  <div class="modal-head"><div><h2 id="mechDrawingModalTitle">Plano</h2><p class="muted">Los cambios quedan registrados con usuario y fecha.</p></div><button id="mechDrawingClose" class="icon-btn" type="button">×</button></div>
- <form id="mechDrawingForm"><div class="form-grid mechanical-form-grid">
+ <form id="mechDrawingForm"><details class="mech-field-help"><summary>Guía de campos y tipos de plano</summary><p><strong>Código XX:</strong> plano original de ARUP, con seguimiento de envío/submittal y respuesta de ARUP; no se elabora ni valida internamente como un plano Levitec. <strong>Código CM:</strong> plano elaborado por Levitec. Selecciona <em>Plano interno de instalación</em> o <em>Plano para submittal</em>. Puedes cambiar de interno a submittal más adelante sin perder código, revisión ni historial.</p><p><strong>Revisión:</strong> revisión documental actual. <strong>Estado de flujo:</strong> fase real de elaboración/validación/envío. <strong>Estado CDE:</strong> estado externo informativo, independiente del flujo. <strong>Zona:</strong> ubicación de obra. <strong>Fecha límite:</strong> entrega prevista. <strong>Delineante / ingeniero:</strong> correos de los responsables. <strong>Desbloqueo:</strong> persona que debe resolver una incidencia. <strong>Referencia de submittal:</strong> número de envío. <strong>Ruta:</strong> enlace al fichero. <strong>Evidencia ARUP:</strong> referencia de aprobación externa. <strong>Motivo:</strong> descripción para la auditoría.</p></details><div class="form-grid mechanical-form-grid">
  <label><span>Código documental *</span><input name="code" required maxlength="160"></label><label><span>Título *</span><input name="title" required maxlength="500"></label>
- <label><span>Clasificación (automática)</span><input id="mechDrawingClassification" value="Introducir código XX o CM" readonly></label><label><span>Zona</span><input name="zone"></label>
- <label><span>¿Requiere submittal? (CM)</span><select name="submittalRequired" id="mechDrawingSubmittalRequired"><option value="NO">FALSE · Plano interno de instalación</option><option value="SI">TRUE · Plano para submittal</option></select></label>
+ <label><span>Origen del plano (según código XX / CM)</span><input id="mechDrawingClassification" value="Introducir código XX o CM" readonly></label><label><span>Zona</span><input name="zone"></label>
+ <label><span>Finalidad documental</span><select name="submittalRequired" id="mechDrawingSubmittalRequired"><option value="NO">Plano interno de instalación</option><option value="SI">Plano para submittal</option></select></label>
  <label><span>Revisión</span><input name="revision"></label><label><span>Estado de flujo</span><select name="status" id="mechDrawingEditStatus"></select></label>
- <label><span>Estado CDE (independiente)</span><input name="cdeStatus"></label><label><span>Fecha límite</span><input name="deadline" type="date"></label>
- <label><span>Delineante (email)</span><input name="draughtsman" type="text"></label><label><span>Ingeniero validador (email)</span><input name="engineer" type="text"></label>
- <label><span>Responsable desbloqueo</span><input name="unblockOwner"></label><label><span>Submittal asociado (referencia)</span><input name="submittalRef"></label>
- <label class="span-2"><span>Ruta / enlace documental</span><input name="path" placeholder="URL o ruta de servidor"></label>
- <label class="span-2"><span>Evidencia aprobación ARUP (obligatoria si aprobado)</span><input name="evidence" placeholder="Referencia de CDE, transmittal o documento"></label>
+ <label><span>Estado documental CDE (informativo)</span><input name="cdeStatus"></label><label><span>Fecha límite</span><input name="deadline" type="date"></label>
+ <label><span>Responsable de delineación (correo)</span><input name="draughtsman" type="text"></label><label><span>Ingeniero responsable de validación (correo)</span><input name="engineer" type="text"></label>
+ <label><span>Responsable de desbloqueo</span><input name="unblockOwner"></label><label><span>Referencia de submittal / envío</span><input name="submittalRef"></label>
+ <label class="span-2"><span>Ruta o enlace al documento</span><input name="path" placeholder="URL o ruta de servidor"></label>
+ <label class="span-2"><span>Referencia de aprobación ARUP (obligatoria al aprobar)</span><input name="evidence" placeholder="Referencia de CDE, transmittal o documento"></label>
  <label class="span-2"><span>Notas</span><textarea name="notes" rows="3" maxlength="4000"></textarea></label>
- <label class="span-2"><span>Motivo del cambio</span><input name="changeReason" placeholder="Revisión, corrección, envío…"></label>
- </div><div class="submittal-form-section"><h3>Hitos constructivos asociados</h3><div id="mechDrawingMilestoneChecks" class="mech-check-list"></div></div>
+ <label class="span-2"><span>Motivo del cambio (para historial)</span><input name="changeReason" placeholder="Revisión, corrección, envío…"></label>
+ </div><div class="submittal-form-section"><h3>Hitos constructivos asociados</h3><p class="muted">Selecciona los hitos cuya ejecución depende de este plano.</p><div id="mechDrawingMilestoneChecks" class="mech-check-list"></div></div>
  <div class="submittal-form-section"><h3>Historial del plano</h3><div id="mechDrawingHistory" class="mech-history"></div></div>
  <div id="mechDrawingFormStatus" class="status hidden"></div><div class="modal-actions mechanical-modal-actions"><button id="mechDrawingCancel" type="button" class="btn btn-secondary">Cancelar</button><button id="mechDrawingSave" type="submit" class="btn btn-primary">Guardar plano</button></div>
  </form></div></div>
-<script src="app.js?v=0.19.1"></script>
+<script src="app.js?v=0.19.2"></script>
 </body>
 </html>

@@ -3051,3 +3051,12 @@ button{cursor:pointer}
 
 /* Mechanical document control v0.19 */
 .mechanical-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.mechanical-tab{border:1px solid var(--border,#d5e0e2);background:var(--surface,#fff);border-radius:9px;padding:10px 14px;cursor:pointer;font-weight:600;color:inherit}.mechanical-tab.active{background:#087f7b;color:#fff;border-color:#087f7b}.mech-overview-note{margin:10px 0;color:var(--text-muted,#65747a)}.mech-check-list{max-height:180px;overflow:auto;display:grid;gap:8px}.mech-check-list label{display:flex;gap:10px;align-items:center;font-weight:400}.mech-history{max-height:200px;overflow:auto;font-size:12px;line-height:1.7}.mech-history-item{border-bottom:1px solid #e5eded;padding:6px 0}.mech-drawing-link{color:#087f7b;text-decoration:underline}.mech-pending-item{padding:10px;border-bottom:1px solid #dfe8e8}.mech-drawing-kpi{min-width:140px}.mech-overdue{color:#aa3e30;font-weight:700}.mech-drawing-action{white-space:nowrap}
+
+/* Mechanical v0.19.2: selector de hitos en el formulario de planos */
+#mechDrawingMilestoneChecks.mech-check-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px;max-height:240px;overflow-y:auto;padding:8px 4px;align-items:stretch}
+#mechDrawingMilestoneChecks.mech-check-list label{display:flex;align-items:flex-start;gap:10px;min-width:0;padding:10px 12px;border:1px solid #dce5e9;border-radius:8px;background:#fff;line-height:1.45;cursor:pointer;overflow-wrap:anywhere}
+#mechDrawingMilestoneChecks.mech-check-list input[type="checkbox"]{flex:0 0 18px;width:18px;height:18px;min-width:18px;margin:1px 0 0;accent-color:#087f7b}
+#mechDrawingMilestoneChecks.mech-check-list label:has(input:checked){background:#edf8f6;border-color:#087f7b}
+@media(max-width:680px){#mechDrawingMilestoneChecks.mech-check-list{grid-template-columns:1fr}}
+
+.mech-field-help{margin:12px 0 18px;padding:12px 14px;background:#f4f9f9;border:1px solid #dce7e7;border-radius:9px;line-height:1.6}.mech-field-help summary{cursor:pointer;font-weight:700;color:#126f6b}.mech-field-help p{margin:8px 0 0;font-size:13px}
