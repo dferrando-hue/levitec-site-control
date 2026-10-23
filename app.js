@@ -706,6 +706,9 @@ window.addEventListener('message', event => {
     case 'warehouseOrderProgress':
       handleWarehouseOrderProgress(msg.payload);
       break;
+    case 'warehouseReceiptContext':
+      handleWarehouseReceiptContext(msg.payload);
+      break;
     case 'deliveryCommentsList':
       handleDeliveryCommentsList(msg.payload);
       break;
@@ -3563,8 +3566,49 @@ function openDeliveryModal(item) {
   el.deliveryCommentsStatus.textContent = 'Cargando historial…';
   el.deliveryModal.classList.remove('hidden');
   postToBackend('deliveryCommentsList', {requestId:item.requestId});
+  const receiptPreview = document.getElementById('warehouseReceiptPreviewContent');
+  if(receiptPreview) receiptPreview.textContent='Pulsa «Consultar recepciones» para ver el pendiente real.';
 }
 
+
+function handleWarehouseReceiptContext(payload){
+  const target=document.getElementById('warehouseReceiptPreviewContent');
+  if(!target)return;
+  if(!payload?.ok){target.textContent=payload?.message||'No se ha podido consultar Warehouse.';return;}
+  if(!state.selectedDelivery||state.selectedDelivery.requestId!==payload.requestId)return;
+  if(!payload.found){target.textContent=payload.message||'Pedido no sincronizado.';return;}
+  const order=payload.order||{};
+  // Se muestra únicamente información que devuelve la API; no se inventan pendientes.
+  const rawLines=order.lines||order.materials||order.lineProgress||[];
+  const lines=Array.isArray(rawLines)?rawLines:[];
+  const summary=document.createElement('div');
+  const status=document.createElement('p');
+  status.textContent='Pedido sincronizado con Warehouse · '+String(order.status||order.receiptStatus||'Consulta disponible');
+  summary.appendChild(status);
+  if(lines.length){
+    const table=document.createElement('table');
+    const head=document.createElement('thead');
+    head.innerHTML='<tr><th>Referencia</th><th>Pedido</th><th>Recibido</th><th>Pendiente</th></tr>';
+    table.appendChild(head);
+    const body=document.createElement('tbody');
+    lines.forEach(line=>{
+      const row=document.createElement('tr');
+      const vals=[line.reference??line.referencia??'',line.quantity??line.orderedQty??'',line.received??line.receivedQty??line.acceptedQty??'',line.pending??line.pendingQty??''];
+      vals.forEach(value=>{const td=document.createElement('td');td.textContent=String(value);row.appendChild(td);});
+      body.appendChild(row);
+    });
+    table.appendChild(body);summary.appendChild(table);
+  }else{
+    const note=document.createElement('p');note.textContent='Warehouse no devolvió un desglose de líneas para este pedido.';summary.appendChild(note);
+  }
+  target.replaceChildren(summary);
+}
+function consultWarehouseReceiptsFromDelivery(){
+  if(!state.selectedDelivery)return;
+  const target=document.getElementById('warehouseReceiptPreviewContent');
+  if(target)target.textContent='Consultando Warehouse…';
+  postToBackend('warehouseReceiptContext',{requestId:state.selectedDelivery.requestId,projectId:state.selectedDelivery.projectId});
+}
 
 function dateToUtcDays_(iso) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso || ''))) return null;
@@ -4584,6 +4628,21 @@ el.deleteConstructionMilestoneBtn.addEventListener('click', deleteConstructionMi
 
 el.closeDeliveryModalBtn.addEventListener('click', closeDeliveryModal);
 el.deliveryModal.querySelector('.modal-backdrop').addEventListener('click', closeDeliveryModal);
+document.getElementById('warehouseReceiptCheckBtn').addEventListener('click', consultWarehouseReceiptsFromDelivery);
+const WAREHOUSE_RECEIPT_URL = 'https://davidferrandoescart.github.io/levitec-almacen-obra/';
+function openDeliveryReceiptInWarehouse(){
+  const item=state.selectedDelivery;
+  if(!item || !item.requestId || !item.projectId){
+    alert('Selecciona primero un pedido de Deliveries.');return;
+  }
+  const url=new URL(WAREHOUSE_RECEIPT_URL);
+  url.searchParams.set('view','receipt');
+  url.searchParams.set('orderId',item.requestId);
+  url.searchParams.set('projectId',item.projectId);
+  window.open(url.toString(),'_blank','noopener,noreferrer');
+}
+document.getElementById('warehouseOpenReceiptBtn').addEventListener('click',openDeliveryReceiptInWarehouse);
+
 el.deliveryMilestoneSelect.addEventListener('change', updateDeliveryMilestoneOffset);
 el.saveDeliveryMilestoneBtn.addEventListener('click', saveDeliveryMilestone);
 el.saveDeliveryDateBtn.addEventListener('click', saveDeliveryDate);
