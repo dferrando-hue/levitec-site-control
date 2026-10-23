@@ -706,9 +706,6 @@ window.addEventListener('message', event => {
     case 'warehouseOrderProgress':
       handleWarehouseOrderProgress(msg.payload);
       break;
-    case 'warehouseReceiptContext':
-      handleWarehouseReceiptContext(msg.payload);
-      break;
     case 'deliveryCommentsList':
       handleDeliveryCommentsList(msg.payload);
       break;
@@ -3607,7 +3604,11 @@ function consultWarehouseReceiptsFromDelivery(){
   if(!state.selectedDelivery)return;
   const target=document.getElementById('warehouseReceiptPreviewContent');
   if(target)target.textContent='Consultando Warehouse…';
-  postToBackend('warehouseReceiptContext',{requestId:state.selectedDelivery.requestId,projectId:state.selectedDelivery.projectId});
+  const item=state.selectedDelivery;
+  const cached=state.warehouseOrderProgress?.[item.requestId];
+  if(cached){handleWarehouseReceiptContext({ok:true,requestId:item.requestId,found:true,order:cached});return;}
+  state.warehouseReceiptConsultPending=item.requestId;
+  postToBackend('warehouseOrderProgress',{projectId:item.projectId});
 }
 
 function dateToUtcDays_(iso) {
@@ -5100,12 +5101,24 @@ function warehouseDeliveryProgressText_(item){
 }
 function handleWarehouseOrderProgress(payload){
   if(!payload?.ok){
+    if(state.warehouseReceiptConsultPending){
+      const target=document.getElementById('warehouseReceiptPreviewContent');
+      if(target)target.textContent='No se puede consultar Warehouse: '+(payload?.message||'Error de comunicación');
+      state.warehouseReceiptConsultPending=null;
+    }
     const info=$('warehouseSyncOrdersInfo');
     if(info)info.textContent='No se ha podido consultar el estado de Warehouse: '+(payload?.message||'Error');
     return;
   }
   if(payload.projectId!==state.currentProject?.id)return;
   state.warehouseOrderProgress=Object.fromEntries((payload.orders||[]).map(o=>[o.requestId,o]));
+  const consulted=state.warehouseReceiptConsultPending;
+  if(consulted){
+    state.warehouseReceiptConsultPending=null;
+    const order=state.warehouseOrderProgress[consulted];
+    handleWarehouseReceiptContext({ok:true,requestId:consulted,found:!!order,order:order||null,
+      message:'El pedido todavía no figura en Warehouse.'});
+  }
   renderDeliveryList();
 }
 function handleWarehouseSyncConfirmedOrders(payload){

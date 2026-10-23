@@ -3071,3 +3071,16 @@ button{cursor:pointer}
 
 .mech-advanced-fields{padding:12px 14px;border:1px solid #dce5e9;border-radius:10px;background:#f8fbfb}
 .mech-advanced-fields summary{font-weight:700;cursor:pointer}.mech-advanced-fields>.form-grid{margin-top:14px}
+
+/* RC4 · Consulta segura del progreso Warehouse */
+.warehouse-receipt-preview{border:1px solid #c9dadd;border-radius:10px;padding:14px;margin-top:16px;background:#f6fbfb}
+.warehouse-receipt-preview-head{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px}
+.warehouse-receipt-preview table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+.warehouse-receipt-preview th,.warehouse-receipt-preview td{padding:8px;text-align:left;border-bottom:1px solid #e0eaed}
+
+/* RC6: acciones de recepción diferenciadas del listado de materiales */
+.warehouse-receipt-preview{margin-top:24px;padding:18px;background:#f7fafb}
+.warehouse-receipt-preview-head{margin-bottom:14px}
+.warehouse-receipt-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:0 0 14px}
+.warehouse-receipt-actions .btn{min-height:43px;padding:10px 16px;white-space:normal}
+@media(max-width:650px){.warehouse-receipt-actions{flex-direction:column;align-items:stretch}.warehouse-receipt-actions .btn{width:100%}}
