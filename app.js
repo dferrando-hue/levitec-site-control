@@ -799,6 +799,10 @@ window.addEventListener('message', event => {
       break;
 
     case 'error':
+      if(state.warehouseReceiptConsultPending && /warehouse|la acción solicitada no existe/i.test(msg.payload?.message||'')){
+        handleWarehouseOrderProgress({ok:false,message:msg.payload?.message});
+        break;
+      }
       if (!el.loginView.classList.contains('hidden')) {
         setStatus(el.loginStatus, msg.payload?.message || 'Error de servidor.', 'error');
       }
@@ -3387,8 +3391,8 @@ function handleDeliveryList(payload) {
   renderConstructionMilestones();
   renderDeliveryCalendar();
   renderDeliveryList();
+  // La consulta remota se inicia únicamente con el botón del pedido.
   state.warehouseOrderProgress = {};
-  postToBackend('warehouseOrderProgress', {projectId:state.currentProject.id});
 }
 
 function todayIso() {
@@ -3527,6 +3531,7 @@ function renderDeliveryList() {
 }
 
 function openDeliveryModal(item) {
+  finishWarehouseReceiptConsult_();
   state.selectedDelivery = item;
 
   el.deliveryModalTitle.textContent = item.requestId || 'Entrega';
@@ -3600,14 +3605,33 @@ function handleWarehouseReceiptContext(payload){
   }
   target.replaceChildren(summary);
 }
+let warehouseReceiptTimer=null;
+function finishWarehouseReceiptConsult_(){
+  clearTimeout(warehouseReceiptTimer);warehouseReceiptTimer=null;
+  state.warehouseReceiptConsultPending=null;
+  state.warehouseReceiptConsultProject=null;
+  const button=document.getElementById('warehouseReceiptCheckBtn');
+  if(button){button.disabled=false;button.textContent='Consultar cantidades recibidas';}
+}
 function consultWarehouseReceiptsFromDelivery(){
-  if(!state.selectedDelivery)return;
-  const target=document.getElementById('warehouseReceiptPreviewContent');
-  if(target)target.textContent='Consultando Warehouse…';
   const item=state.selectedDelivery;
-  const cached=state.warehouseOrderProgress?.[item.requestId];
-  if(cached){handleWarehouseReceiptContext({ok:true,requestId:item.requestId,found:true,order:cached});return;}
+  if(!item||state.warehouseReceiptConsultPending)return;
+  const target=document.getElementById('warehouseReceiptPreviewContent');
+  if(checkSessionExpiry_()){
+    if(target)target.textContent='La sesión ha caducado. Inicia sesión para consultar Warehouse.';
+    return;
+  }
+  if(!item.projectId){if(target)target.textContent='El pedido no tiene proyecto asociado.';return;}
+  if(target)target.textContent='Consultando Warehouse… Puede tardar hasta 30 segundos.';
   state.warehouseReceiptConsultPending=item.requestId;
+  state.warehouseReceiptConsultProject=item.projectId;
+  const button=document.getElementById('warehouseReceiptCheckBtn');
+  if(button){button.disabled=true;button.textContent='Consultando…';}
+  warehouseReceiptTimer=setTimeout(()=>{
+    const selected=state.selectedDelivery?.requestId===item.requestId;
+    finishWarehouseReceiptConsult_();
+    if(selected&&target)target.textContent='Warehouse no ha respondido en 30 segundos. El estado no se ha comprobado. Puedes abrir Warehouse o volver a consultar.';
+  },30000);
   postToBackend('warehouseOrderProgress',{projectId:item.projectId});
 }
 
@@ -3872,6 +3896,7 @@ function deleteConstructionMilestone() {
 }
 
 function closeDeliveryModal() {
+  finishWarehouseReceiptConsult_();
   el.deliveryModal.classList.add('hidden');
   state.selectedDelivery = null;
   setDeliverySubmitting(false);
@@ -5092,7 +5117,7 @@ document.getElementById('mechDrawingForm').addEventListener('submit',submitDrawi
 function warehouseDeliveryProgressText_(item){
   if(item.purchaseStatus!=='CONFIRMADO_PROVEEDOR')return 'Pendiente de confirmación';
   const order=state.warehouseOrderProgress?.[item.requestId];
-  if(!order)return 'Sin recepción sincronizada';
+  if(!order)return 'Warehouse: estado sin consultar';
   const lines=order.lines||[];
   const pending=lines.filter(l=>Number(l.pending)>0).length;
   return order.receiptStatus==='COMPLETA'?'Warehouse: recibido completo':
@@ -5100,27 +5125,31 @@ function warehouseDeliveryProgressText_(item){
     'Warehouse: pendiente · '+pending+' líneas';
 }
 function handleWarehouseOrderProgress(payload){
+  const consulted=state.warehouseReceiptConsultPending;
+  const project=state.warehouseReceiptConsultProject;
+  if(!consulted)return;
+  if(payload?.projectId&&payload.projectId!==project)return;
+  finishWarehouseReceiptConsult_();
+  if(project!==state.currentProject?.id)return;
   if(!payload?.ok){
-    if(state.warehouseReceiptConsultPending){
+    if(state.selectedDelivery?.requestId===consulted){
       const target=document.getElementById('warehouseReceiptPreviewContent');
       if(target)target.textContent='No se puede consultar Warehouse: '+(payload?.message||'Error de comunicación');
-      state.warehouseReceiptConsultPending=null;
     }
-    const info=$('warehouseSyncOrdersInfo');
-    if(info)info.textContent='No se ha podido consultar el estado de Warehouse: '+(payload?.message||'Error');
     return;
   }
-  if(payload.projectId!==state.currentProject?.id)return;
-  state.warehouseOrderProgress=Object.fromEntries((payload.orders||[]).map(o=>[o.requestId,o]));
-  const consulted=state.warehouseReceiptConsultPending;
-  if(consulted){
-    state.warehouseReceiptConsultPending=null;
+  if(!Array.isArray(payload.orders)){
+    handleWarehouseReceiptContext({ok:false,message:'Warehouse devolvió una respuesta sin lista de pedidos.'});return;
+  }
+  state.warehouseOrderProgress=Object.fromEntries(payload.orders.map(o=>[o.requestId,o]));
+  if(state.selectedDelivery?.requestId===consulted){
     const order=state.warehouseOrderProgress[consulted];
     handleWarehouseReceiptContext({ok:true,requestId:consulted,found:!!order,order:order||null,
-      message:'El pedido todavía no figura en Warehouse.'});
+      message:'La consulta no devolvió este pedido. Comprueba el proyecto y la sincronización en Warehouse.'});
   }
   renderDeliveryList();
 }
+
 function handleWarehouseSyncConfirmedOrders(payload){
   const btn=$('warehouseSyncOrdersBtn'),info=$('warehouseSyncOrdersInfo');
   if(btn)btn.disabled=false;
@@ -5131,7 +5160,7 @@ function handleWarehouseSyncConfirmedOrders(payload){
     const errors=(payload.results||[]).filter(r=>r.ok===false).map(r=>r.requestId+': '+r.error).slice(0,12);
     info.textContent+=' '+errors.join(' | ');
   }
-  postToBackend('warehouseOrderProgress',{projectId:state.currentProject.id});
+  // Sin consulta remota automática después de sincronizar.
 }
 $('warehouseSyncOrdersBtn')?.addEventListener('click',()=>{
   if(!state.currentProject)return;
