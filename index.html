@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#007c7a">
   <title>LEVITEC SITE CONTROL</title>
   <link rel="preconnect" href="https://accounts.google.com">
-  <link rel="stylesheet" href="styles.css?v=rc8-20261025">
+  <link rel="stylesheet" href="styles.css?v=rc9-warehouse-20261025">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -283,6 +283,12 @@
   </div>
 
   <div id="warehouseStatus" class="status hidden"></div>
+  <div id="warehousePendingRequest" class="warehouse-pending hidden" role="status">
+    <p id="warehousePendingText"></p><button id="warehouseRetryRequest" class="btn btn-secondary" type="button">Comprobar / reenviar la misma solicitud</button>
+  </div>
+  <div class="warehouse-tools"><p class="muted">Solo existencias del proyecto actual. Solicitar material no reserva ni descuenta stock.</p>
+    <button id="warehouseRefreshBtn" type="button" class="btn btn-secondary">Actualizar</button></div>
+  <p id="warehouseStockUpdated" class="muted" role="status">Existencias sin consultar</p>
 
   <div class="warehouse-selector-row">
     <label>
@@ -295,17 +301,23 @@
 
   <div class="warehouse-summary">
     <div><span>REFERENCIAS</span><strong id="warehouseSkuCount">0</strong></div>
-    <div><span>EN CUARENTENA</span><strong id="warehouseQuarantineCount">0</strong></div>
-    <div><span>SOLICITUDES ABIERTAS</span><strong id="warehouseOpenRequestsCount">0</strong></div>
+    <div><span>REFERENCIAS EN CUARENTENA</span><strong id="warehouseQuarantineCount">0</strong></div>
+    <div title="Abre Solicitudes para consultar este contador"><span>SOLICITUDES ABIERTAS</span><strong id="warehouseOpenRequestsCount">—</strong></div>
   </div>
 
   <div class="warehouse-tabs">
-    <button class="warehouse-tab active" data-tab="stock" type="button">Stock</button>
+    <button class="warehouse-tab active" data-tab="stock" type="button">Existencias</button>
     <button class="warehouse-tab" data-tab="requests" type="button">Solicitudes</button>
     <button class="warehouse-tab" data-tab="zones" type="button">Zonas</button>
   </div>
 
   <div id="warehouseStockPanel" class="warehouse-panel">
+    <div class="warehouse-filters">
+      <label><span>Buscar material</span><input id="warehouseStockSearch" type="search" placeholder="Referencia o descripción"></label>
+      <label><span>Zona</span><select id="warehouseStockZone"><option value="">Todas las zonas</option></select></label>
+      <label><span>Estado</span><select id="warehouseStockState"><option value="">Todos</option><option value="OK">Disponible</option><option value="QUARANTINE">Cuarentena</option></select></label>
+    </div>
+    <p class="warehouse-scroll-hint muted">Desliza la tabla para ver cantidades, estados y acciones.</p>
     <div class="warehouse-table-wrap">
       <table class="warehouse-table">
         <thead>
@@ -324,6 +336,10 @@
   </div>
 
   <div id="warehouseRequestsPanel" class="warehouse-panel hidden">
+    <p id="warehouseRequestsUpdated" class="muted" role="status">Solicitudes sin consultar</p>
+    <label class="warehouse-request-filter"><span>Estado de la solicitud</span><select id="warehouseRequestState">
+      <option value="">Todos</option><option>PENDIENTE</option><option>PREPARANDO</option><option>ENTREGADA</option><option>RECHAZADA</option><option>CANCELADA</option>
+    </select></label>
     <div id="warehouseRequestsList" class="warehouse-requests-list"></div>
   </div>
 
@@ -1499,6 +1515,6 @@ window.LEVITEC_CONFIG = {
  <div class="submittal-form-section"><h3>Historial del plano</h3><div id="mechDrawingHistory" class="mech-history"></div></div>
  <div id="mechDrawingFormStatus" class="status hidden"></div><div class="modal-actions mechanical-modal-actions"><button id="mechDrawingCancel" type="button" class="btn btn-secondary">Cancelar</button><button id="mechDrawingSave" type="submit" class="btn btn-primary">Guardar plano</button></div>
  </form></div></div>
-<script src="app.js?v=rc8-20261025"></script>
+<script src="app.js?v=rc9-warehouse-20261025"></script>
 </body>
 </html>

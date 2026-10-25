@@ -3091,3 +3091,13 @@ button{cursor:pointer}
 .warehouse-receipt-actions .btn:disabled{opacity:.65;cursor:wait}
 .warehouse-receipt-preview{overflow-x:auto}
 @media(max-width:650px){.warehouse-receipt-actions{grid-template-columns:1fr}}
+
+/* Warehouse RC9 */
+.warehouse-tools{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:12px 0}
+.warehouse-tools p{margin:0}.warehouse-filters{display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px;margin:16px 0}
+.warehouse-filters label,.warehouse-request-filter{display:grid;gap:7px;font-size:13px;font-weight:700}
+.warehouse-filters input,.warehouse-filters select,.warehouse-request-filter select{width:100%;min-height:44px;border:1px solid #cbd5d8;border-radius:9px;padding:10px;background:#fff}
+.warehouse-request-filter{max-width:310px;margin-bottom:16px}.warehouse-pending{padding:16px;border:1px solid #d7b46a;border-radius:12px;background:#fff8e8;margin:16px 0}
+.warehouse-pending p{margin:0 0 12px}.warehouse-request-card{gap:8px}.warehouse-row-action .btn{min-height:40px}
+@media(max-width:650px){.warehouse-filters{grid-template-columns:1fr}.warehouse-tools{align-items:stretch;flex-direction:column}.warehouse-pending .btn{width:100%}}
+.warehouse-scroll-hint{display:none}@media(max-width:650px){.warehouse-scroll-hint{display:block;font-size:12px}}

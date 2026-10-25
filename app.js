@@ -281,6 +281,9 @@ const el = {
   warehouseQuarantineCount: $('warehouseQuarantineCount'),
   warehouseOpenRequestsCount: $('warehouseOpenRequestsCount'),
   warehouseStockBody: $('warehouseStockBody'),
+  warehouseStockPanel: $('warehouseStockPanel'),
+  warehouseRequestsPanel: $('warehouseRequestsPanel'),
+  warehouseZonesPanel: $('warehouseZonesPanel'),
   warehouseRequestsList: $('warehouseRequestsList'),
   warehouseZonesList: $('warehouseZonesList'),
   newMaterialRequestBtn: $('newMaterialRequestBtn'),
@@ -794,6 +797,8 @@ window.addEventListener('message', event => {
       break;
 
     case 'warehouseRequestCreate':
+      wmCompleteRequest(msg.payload);
+      break;
     case 'warehouseZoneCreate':
       handleWarehouseMutation(msg.payload);
       break;
@@ -3970,55 +3975,155 @@ function handleDeliveryMutation(payload) {
 
 
 /* WAREHOUSE */
-function openWarehouse() {
-  if (!state.currentProject) return;
-
-  el.warehouseProjectSubtitle.textContent =
-    `${state.currentProject.name || state.currentProject.id} · ${state.currentProject.campus || ''}`;
-
-  show(el.warehouseView);
-  setStatus(el.warehouseStatus, 'Cargando almacenes…');
-
-  postToBackend('warehouseBootstrap', {
-    projectId: state.currentProject.id
-  });
+// Warehouse Site Control RC9: lecturas identificadas y solicitudes recuperables.
+const wm={read:null,queue:[],stockCache:new Map(),requestCache:new Map(),bootstrapCache:new Map(),
+  stockKey:null,stockLoading:false,tab:'stock',writeTimer:null,writing:false};
+const wmClosed=new Set(['ENTREGADA','RECHAZADA','CANCELADA']);
+function wmProject(){return state.currentProject?.id||'';}
+function wmKey(warehouse=state.selectedWarehouseId){return wmProject()+'|'+warehouse;}
+function wmFresh(entry){return entry&&Date.now()-entry.at<30000;}
+function wmDate(value){const d=new Date(value);return Number.isNaN(d.getTime())?String(value||'—'):d.toLocaleString('es-ES');}
+function wmRead(action,payload){
+  const key=action+'|'+payload.projectId+'|'+(payload.warehouseId||'');
+  if(wm.read?.key===key||wm.queue.some(j=>j.key===key))return;
+  wm.queue.push({key,action,payload:{...payload,queryId:newClientRequestId()}});wmPump();
+}
+function wmPump(){
+  if(wm.read||wm.writing)return;
+  wm.queue=wm.queue.filter(j=>j.payload.projectId===wmProject()&&(j.action!=='warehouseStockList'||j.payload.warehouseId===state.selectedWarehouseId));
+  const job=wm.queue.shift();if(!job)return;
+  if(checkSessionExpiry_()){wm.queue=[];wm.stockLoading=false;wmControls();return;}
+  wm.read=job;
+  job.timer=setTimeout(()=>{
+    if(wm.read!==job)return;wm.read=null;
+    if(job.payload.projectId===wmProject()){
+      if(job.action==='warehouseStockList'&&job.payload.warehouseId===state.selectedWarehouseId){wm.stockLoading=false;wmControls();el.warehouseStockBody.innerHTML='<tr><td colspan="6">Consulta sin respuesta. Pulsa Actualizar para reintentar.</td></tr>';}
+      if(job.action==='warehouseBootstrap'){wm.stockLoading=false;state.selectedWarehouseId=null;el.warehouseSelect.disabled=true;wmControls();el.warehouseStockBody.innerHTML='<tr><td colspan="6">No se han podido cargar los almacenes. Pulsa Actualizar.</td></tr>';}
+      setStatus(el.warehouseStatus,'La consulta ha superado 30 segundos. Pulsa Actualizar para volver a intentarlo.','error');
+    }
+    wmPump();
+  },30000);
+  postToBackend(job.action,job.payload);
+}
+function wmAccept(payload,action){
+  const job=wm.read;
+  if(!job||job.action!==action||payload?.queryId!==job.payload.queryId)return false;
+  clearTimeout(job.timer);wm.read=null;setTimeout(wmPump,0);
+  if(payload.projectId!==wmProject())return false;
+  if(action==='warehouseStockList'&&payload.warehouseId!==state.selectedWarehouseId)return false;
+  if(!payload.ok){
+    if(action==='warehouseBootstrap'){wm.stockLoading=false;state.selectedWarehouseId=null;el.warehouseSelect.disabled=true;wmControls();el.warehouseStockBody.innerHTML='<tr><td colspan="6">No se han podido cargar los almacenes. Pulsa Actualizar.</td></tr>';}
+    if(action==='warehouseStockList'){wm.stockLoading=false;wmControls();el.warehouseStockBody.innerHTML='<tr><td colspan="6">Existencias no disponibles. Pulsa Actualizar para reintentar.</td></tr>';}
+    setStatus(el.warehouseStatus,payload.message||'No se pudo consultar Warehouse.','error');return false;
+  }
+  return true;
+}
+function wmControls(){
+  const ready=!wm.stockLoading&&wm.stockKey===wmKey();
+  el.newMaterialRequestBtn.disabled=!ready||!state.warehousePermissions.canRequest||!!wmPending();
+  if(!ready)el.submitMaterialRequestBtn.disabled=true;
+  document.getElementById('warehouseStockUpdated').textContent=wm.stockLoading?'Consultando existencias…':
+    ready?'Datos consultados: '+wmDate(wm.stockCache.get(wmKey())?.at):'Existencias sin consultar';
+  wmRenderPending();
+  if(ready)renderWarehouseStock();
+}
+function wmApplyStock(entry){
+  state.warehouseStock=entry.stock;wm.stockKey=wmKey();wm.stockLoading=false;
+  const zone=document.getElementById('warehouseStockZone'),previous=zone.value;
+  zone.innerHTML='<option value="">Todas las zonas</option>'+[...new Set(entry.stock.map(x=>x.zoneId).filter(Boolean))].sort().map(z=>'<option value="'+esc(z)+'">'+esc(z)+'</option>').join('');
+  if([...zone.options].some(x=>x.value===previous))zone.value=previous;
+  renderWarehouseStock();renderWarehouseSummary();wmControls();
+  if(!el.materialRequestModal.classList.contains('hidden')){refreshMaterialRequestFinder();clearStatus(el.materialRequestStatus);}
+}
+function wmLoadRequests(force=false){
+  const entry=wm.requestCache.get(wmProject());
+  if(!force&&wmFresh(entry)){state.warehouseRequests=entry.requests;renderWarehouseRequests();renderWarehouseSummary();return;}
+  setStatus(el.warehouseStatus,'Consultando solicitudes…');
+  wmRead('warehouseRequestList',{projectId:wmProject()});
+}
+function wmPendingKey(){return 'levitec.warehouse.pending.v1|'+String(state.bootstrap?.user?.email||'').toLowerCase()+'|'+wmProject();}
+function wmPending(){
+  try{const p=JSON.parse(sessionStorage.getItem(wmPendingKey())||'null');
+    return p&&typeof p.clientRequestId==='string'&&p.payload?.projectId===wmProject()?p:null;
+  }catch{return null;}
+}
+function wmRenderPending(){
+  const p=wmPending(),box=document.getElementById('warehousePendingRequest');box.classList.toggle('hidden',!p);
+  if(!p)return;
+  document.getElementById('warehousePendingText').textContent='Solicitud por confirmar: '+p.payload.reference+' · '+p.payload.quantity+' · '+p.payload.warehouseId+'. Comprueba o reenvía la misma solicitud para recuperar el resultado sin duplicarla.';
+  document.getElementById('warehouseRetryRequest').disabled=wm.writing;
+}
+function wmSendPending(){
+  const p=wmPending();if(!p||wm.writing)return;
+  if(wm.read){setStatus(el.warehouseStatus,'Espera a que termine la consulta y pulsa Comprobar / reenviar.','info');return;}
+  if(checkSessionExpiry_())return;
+  const attempt={...p,key:wmPendingKey()};wm.writeContext=attempt;
+  wm.writing=true;wmRenderPending();
+  setStatus(el.warehouseStatus,'Enviando solicitud de material…');
+  wm.writeTimer=setTimeout(()=>{
+    if(wm.writeContext!==attempt)return;
+    wm.writing=false;wmRenderPending();
+    wmPump();
+    if(attempt.payload.projectId===wmProject())setStatus(el.warehouseStatus,'No se ha confirmado el envío. Conservamos la solicitud: usa Comprobar / reenviar, sin crear otra.','error');
+  },30000);
+  postToBackend('warehouseRequestCreate',{...p.payload,clientRequestId:p.clientRequestId});
+}
+function wmCompleteRequest(payload){
+  const p=wm.writeContext;
+  if(!p||payload?.clientRequestId!==p.clientRequestId||payload.projectId!==p.payload.projectId)return;
+  clearTimeout(wm.writeTimer);wm.writing=false;
+  setTimeout(wmPump,0);
+  const current=payload.projectId===wmProject();
+  if(!payload.ok){
+    wmRenderPending();if(current)setStatus(el.warehouseStatus,(payload.message||'No se ha confirmado la solicitud.')+' Conservamos el identificador para comprobar o reintentar el mismo envío.','error');return;
+  }
+  sessionStorage.removeItem(p.key);wm.writeContext=null;
+  wm.requestCache.delete(payload.projectId);
+  if(!current)return;
+  wmRenderPending();wmControls();
+  setWarehouseTab('requests');
+  setStatus(el.warehouseStatus,'Solicitud '+payload.requestId+(payload.duplicate?' recuperada; ya estaba registrada.':' registrada. No reserva ni descuenta existencias.'),'success');
+}
+function wmReset(){
+  if(wm.read)clearTimeout(wm.read.timer);clearTimeout(wm.writeTimer);
+  wm.read=null;wm.queue=[];wm.writing=false;wm.writeContext=null;wm.stockLoading=false;wm.stockKey=null;
+  wm.stockCache.clear();wm.requestCache.clear();wm.bootstrapCache.clear();
+  state.warehouseStock=[];state.warehouseRequests=[];state.warehouses=[];state.warehouseZones=[];
 }
 
-function handleWarehouseBootstrap(payload) {
-  if (!payload?.ok) {
-    setStatus(el.warehouseStatus, payload?.message || 'No se han podido cargar los almacenes.', 'error');
-    return;
-  }
+function openWarehouse() {
+  if(!state.currentProject)return;
+  el.warehouseProjectSubtitle.textContent=(state.currentProject.name||wmProject())+' · Existencias de este proyecto';
+  show(el.warehouseView);wm.tab='stock';setWarehouseTab('stock');
+  state.warehouseStock=[];state.warehouseRequests=[];wm.stockKey=null;wm.stockLoading=true;
+  el.warehouseRequestsList.innerHTML='<div class="empty-state">Abre Solicitudes para consultar su estado.</div>';
+  el.warehouseStockBody.innerHTML='<tr><td colspan="6">Cargando almacenes y existencias…</td></tr>';
+  el.warehouseSelect.disabled=true;el.warehouseSkuCount.textContent='—';el.warehouseQuarantineCount.textContent='—';el.warehouseOpenRequestsCount.textContent='—';
+  wmControls();
+  const cached=wm.bootstrapCache.get(wmProject());
+  if(wmFresh(cached)){wmBootstrap(cached.payload);return;}
+  setStatus(el.warehouseStatus,'Cargando almacenes…');
+  wmRead('warehouseBootstrap',{projectId:wmProject()});
+}
 
-  state.warehouses = Array.isArray(payload.warehouses) ? payload.warehouses : [];
-  state.warehouseZones = Array.isArray(payload.zones) ? payload.zones : [];
-  state.warehousePermissions = payload.permissions || {};
-
-  clearStatus(el.warehouseStatus);
-
-  renderWarehouseSelector();
-
-  if (state.warehouses.length) {
-    const currentCampus = String(state.currentProject?.campus || '').trim().toLowerCase();
-
-    const preferred = state.warehouses.find(w =>
-      String(w.campus || '').trim().toLowerCase() === currentCampus
-    ) || state.warehouses[0];
-
-    state.selectedWarehouseId = preferred.id;
-    el.warehouseSelect.value = preferred.id;
-
-    loadWarehouseData();
-  } else {
-    el.warehouseStockBody.innerHTML =
-      '<tr><td colspan="6">No hay almacenes configurados para este proyecto.</td></tr>';
-  }
-
-  renderWarehouseZones();
-  el.newZoneBtn.classList.toggle(
-    'hidden',
-    !state.warehousePermissions.canConfigure
-  );
+function handleWarehouseBootstrap(payload){
+  if(!wmAccept(payload,'warehouseBootstrap'))return;
+  wm.bootstrapCache.set(wmProject(),{at:Date.now(),payload});wmBootstrap(payload);
+}
+function wmBootstrap(payload){
+  state.warehouses=Array.isArray(payload.warehouses)?payload.warehouses:[];
+  state.warehouseZones=Array.isArray(payload.zones)?payload.zones:[];
+  state.warehousePermissions=payload.permissions||{};
+  state.warehouseRequests=wm.requestCache.get(wmProject())?.requests||[];
+  renderWarehouseSelector();el.warehouseSelect.disabled=!state.warehouses.length;
+  el.newZoneBtn.classList.add('hidden');
+  const previous=state.warehouses.find(w=>w.id===state.selectedWarehouseId);
+  const campus=String(state.currentProject?.campus||'').trim().toLowerCase();
+  const preferred=previous||state.warehouses.find(w=>String(w.campus||'').trim().toLowerCase()===campus)||state.warehouses[0];
+  state.selectedWarehouseId=preferred?.id||null;el.warehouseSelect.value=state.selectedWarehouseId||'';
+  clearStatus(el.warehouseStatus);renderWarehouseZones();
+  if(preferred)loadWarehouseData();
+  else{wm.stockLoading=false;wm.stockKey=null;state.warehouseStock=[];renderWarehouseStock();renderWarehouseSummary();wmControls();}
 }
 
 function renderWarehouseSelector() {
@@ -4037,62 +4142,36 @@ function renderWarehouseSelector() {
       .join('');
 }
 
-function loadWarehouseData() {
-  if (!state.selectedWarehouseId) return;
-
-  const warehouse = state.warehouses.find(
-    w => w.id === state.selectedWarehouseId
-  );
-
-  el.warehouseMeta.textContent = warehouse
-    ? [warehouse.campus, warehouse.discipline, warehouse.warehouseRole]
-        .filter(Boolean)
-        .join(' · ')
-    : '';
-
-  postToBackend('warehouseStockList', {
-    projectId: state.currentProject.id,
-    warehouseId: state.selectedWarehouseId
-  });
-
+function loadWarehouseData(force=false){
+  if(!state.selectedWarehouseId)return;
+  const warehouse=state.warehouses.find(w=>w.id===state.selectedWarehouseId);
+  el.warehouseMeta.textContent=warehouse?[warehouse.campus,warehouse.discipline].filter(Boolean).join(' · '):'';
+  state.materialRequestSelection=null;el.submitMaterialRequestBtn.disabled=true;
+  if(!el.materialRequestModal.classList.contains('hidden'))clearMaterialRequestSelection();
   renderWarehouseZones();
-}
-
-function handleWarehouseStock(payload) {
-  if (!payload?.ok) {
-    setStatus(el.warehouseStatus, payload?.message || 'No se ha podido cargar el stock.', 'error');
-    return;
-  }
-
-  state.warehouseStock = Array.isArray(payload.stock)
-    ? payload.stock
-    : [];
-
-  renderWarehouseStock();
-  renderWarehouseSummary();
-
-  if (!el.materialRequestModal.classList.contains('hidden')) {
-    refreshMaterialRequestFinder();
-  }
-
-  // El frontend usa un único iframe oculto: serializamos las llamadas.
-  postToBackend('warehouseRequestList', {
-    projectId: state.currentProject.id
-  });
-}
-
-function handleWarehouseRequests(payload) {
-  if (!payload?.ok) {
-    setStatus(el.warehouseStatus, payload?.message || 'No se han podido cargar las solicitudes.', 'error');
-    return;
-  }
-
-  state.warehouseRequests = Array.isArray(payload.requests)
-    ? payload.requests
-    : [];
-
   renderWarehouseRequests();
-  renderWarehouseSummary();
+  if(wm.tab==='requests')wmLoadRequests();
+  const cached=wm.stockCache.get(wmKey());
+  if(!force&&wmFresh(cached)){wmApplyStock(cached);return;}
+  wm.stockLoading=true;wm.stockKey=null;state.warehouseStock=[];
+  el.warehouseStockBody.innerHTML='<tr><td colspan="6">Consultando existencias de este almacén…</td></tr>';
+  el.warehouseSkuCount.textContent='—';el.warehouseQuarantineCount.textContent='—';wmControls();
+  wmRead('warehouseStockList',{projectId:wmProject(),warehouseId:state.selectedWarehouseId});
+}
+
+function handleWarehouseStock(payload){
+  if(!wmAccept(payload,'warehouseStockList'))return;
+  if(!Array.isArray(payload.stock)){wm.stockLoading=false;wmControls();setStatus(el.warehouseStatus,'Warehouse devolvió una lista de existencias no válida.','error');return;}
+  const entry={at:Date.now(),stock:payload.stock};wm.stockCache.set(wmKey(),entry);
+  clearStatus(el.warehouseStatus);wmApplyStock(entry);
+}
+
+function handleWarehouseRequests(payload){
+  if(!wmAccept(payload,'warehouseRequestList'))return;
+  if(!Array.isArray(payload.requests)){setStatus(el.warehouseStatus,'Warehouse devolvió una lista de solicitudes no válida.','error');return;}
+  wm.requestCache.set(wmProject(),{at:Date.now(),requests:payload.requests});state.warehouseRequests=payload.requests;
+  renderWarehouseRequests();renderWarehouseSummary();
+  setStatus(el.warehouseStatus,'Solicitudes actualizadas: '+wmDate(Date.now())+'.','success');
 }
 
 function renderWarehouseSummary() {
@@ -4108,31 +4187,34 @@ function renderWarehouseSummary() {
       .filter(Boolean)
   );
 
-  const quarantine = stock.filter(
+  const quarantine = new Set(stock.filter(
     item => item.status === 'QUARANTINE'
-  ).length;
+  ).map(item=>item.reference||item.description).filter(Boolean)).size;
 
   const openRequests = state.warehouseRequests.filter(
     req =>
       req.warehouseId === warehouseId &&
-      !['ENTREGADA','CANCELADA'].includes(req.status)
+      !wmClosed.has(String(req.status||'').trim().toUpperCase())
   ).length;
 
-  el.warehouseSkuCount.textContent = refs.size;
-  el.warehouseQuarantineCount.textContent = quarantine;
-  el.warehouseOpenRequestsCount.textContent = openRequests;
+  el.warehouseSkuCount.textContent = wm.stockLoading||wm.stockKey!==wmKey()?'—':refs.size;
+  el.warehouseQuarantineCount.textContent = wm.stockLoading||wm.stockKey!==wmKey()?'—':quarantine;
+  el.warehouseOpenRequestsCount.textContent = wm.requestCache.has(wmProject())?openRequests:'—';
 }
 
 function renderWarehouseStock() {
   const rows = state.warehouseStock.filter(
-    item => item.warehouseId === state.selectedWarehouseId
+    item => item.warehouseId === state.selectedWarehouseId &&
+      (!document.getElementById('warehouseStockZone').value||item.zoneId===document.getElementById('warehouseStockZone').value) &&
+      (!document.getElementById('warehouseStockState').value||item.status===document.getElementById('warehouseStockState').value) &&
+      (String(item.reference||'')+' '+String(item.description||'')).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(document.getElementById('warehouseStockSearch').value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim())
   );
 
   el.warehouseStockBody.innerHTML = '';
 
   if (!rows.length) {
     el.warehouseStockBody.innerHTML =
-      '<tr><td colspan="6">No hay stock registrado en este almacén.</td></tr>';
+      '<tr><td colspan="6">No hay existencias de este proyecto que coincidan con los filtros.</td></tr>';
     return;
   }
 
@@ -4145,7 +4227,7 @@ function renderWarehouseStock() {
       <td>${esc(item.description || '—')}</td>
       <td>${esc(item.zoneId || '—')}</td>
       <td>${esc(item.quantity || '0')} ${esc(item.unit || '')}</td>
-      <td>${esc(item.status || 'OK')}</td>
+      <td>${isQuarantine?'Cuarentena':'Disponible'}</td>
       <td class="warehouse-row-action"></td>
     `;
 
@@ -4154,7 +4236,7 @@ function renderWarehouseStock() {
     button.type = 'button';
     button.className = 'btn btn-secondary btn-sm';
     button.textContent = isQuarantine ? 'Cuarentena' : 'Solicitar';
-    button.disabled = isQuarantine;
+    button.disabled = isQuarantine || !state.warehousePermissions.canRequest || wm.stockLoading || !!wmPending();
 
     if (!isQuarantine) {
       button.addEventListener('click', () => {
@@ -4171,8 +4253,11 @@ function renderWarehouseStock() {
 }
 
 function renderWarehouseRequests() {
+  const entry=wm.requestCache.get(wmProject());
+  document.getElementById('warehouseRequestsUpdated').textContent=entry?'Datos consultados: '+wmDate(entry.at):'Solicitudes sin consultar';
   const rows = state.warehouseRequests.filter(
-    req => req.warehouseId === state.selectedWarehouseId
+    req => req.warehouseId === state.selectedWarehouseId &&
+      (!document.getElementById('warehouseRequestState').value||String(req.status||'').toUpperCase()===document.getElementById('warehouseRequestState').value)
   );
 
   el.warehouseRequestsList.innerHTML = '';
@@ -4189,7 +4274,8 @@ function renderWarehouseRequests() {
 
     card.innerHTML = `
       <strong>${esc(req.reference || req.description || req.requestId)}</strong>
-      <span>${esc(req.quantity)} · ${esc(req.status)} · ${esc(req.requestedAt)}</span>
+      <span>${esc(req.requestId)} · ${esc(req.requestedBy || '')}</span>
+      <span>${esc(req.quantity)} · ${esc(req.status)} · ${esc(wmDate(req.requestedAt))}</span>
       ${req.notes ? `<span>${esc(req.notes)}</span>` : ''}
     `;
 
@@ -4214,7 +4300,7 @@ function renderWarehouseZones() {
     const card = document.createElement('div');
     card.className =
       'zone-card' +
-      (zone.type === 'QUARANTINE' ? ' quarantine' : '');
+      (['QUARANTINE','CUARENTENA'].includes(zone.type) ? ' quarantine' : '');
 
     card.innerHTML = `
       <strong>${esc(zone.name || zone.zoneId)}</strong>
@@ -4297,6 +4383,7 @@ function refreshMaterialRequestFinder() {
 }
 
 function renderMaterialRequestResults() {
+  if(wm.stockLoading||wm.stockKey!==wmKey(el.materialRequestWarehouse.value)){el.materialRequestResults.innerHTML='<div class="material-search-empty">Existencias pendientes de consulta.</div>';return;}
   if (state.materialRequestSelection) {
     el.materialRequestResults.innerHTML = '';
     return;
@@ -4392,7 +4479,8 @@ function clearMaterialRequestSelection() {
 }
 
 function openMaterialRequestModal(prefill = null) {
-  if (!state.warehouses.length) return;
+  if (!state.warehouses.length || wm.stockLoading || wm.stockKey!==wmKey() || !state.warehousePermissions.canRequest || wmPending()) return;
+  if(!wmFresh(wm.stockCache.get(wmKey()))){loadWarehouseData(true);setStatus(el.warehouseStatus,'Actualizando existencias antes de solicitar. Cuando termine, vuelve a pulsar Solicitar material.','info');return;}
 
   el.materialRequestForm.reset();
   clearStatus(el.materialRequestStatus);
@@ -4432,6 +4520,10 @@ function closeMaterialRequestModal() {
 el.materialRequestForm.addEventListener('submit', event => {
   event.preventDefault();
 
+  if(wm.writing||wmPending())return;
+  if(wm.stockLoading||wm.stockKey!==wmKey()||!state.warehousePermissions.canRequest){
+    setStatus(el.materialRequestStatus,'Espera a la consulta de existencias y comprueba tus permisos.','error');return;
+  }
   const selected = state.materialRequestSelection;
   if (!selected) {
     setStatus(el.materialRequestStatus, 'Selecciona un material del stock.', 'error');
@@ -4454,17 +4546,19 @@ el.materialRequestForm.addEventListener('submit', event => {
     return;
   }
 
-  el.submitMaterialRequestBtn.disabled = true;
-  setStatus(el.materialRequestStatus, 'Enviando solicitud…');
+  if(Math.abs(quantity*1000-Math.round(quantity*1000))>0.000001||String(selected.reference||'').length>80||String(selected.description||'').length>200||el.materialRequestNotes.value.length>250){
+    setStatus(el.materialRequestStatus,'Usa como máximo 3 decimales, 80 caracteres de referencia, 200 de descripción y 250 de observaciones.','error');return;
+  }
 
-  postToBackend('warehouseRequestCreate', {
-    projectId: state.currentProject.id,
-    warehouseId: el.materialRequestWarehouse.value,
-    reference: selected.reference,
-    description: selected.description,
-    quantity: quantity,
-    notes: el.materialRequestNotes.value
-  });
+  if(checkSessionExpiry_())return;
+  const clientRequestId=newClientRequestId();
+  const payload={projectId:wmProject(),warehouseId:el.materialRequestWarehouse.value,
+    reference:selected.reference,description:selected.description,quantity,notes:el.materialRequestNotes.value};
+  try{sessionStorage.setItem(wmPendingKey(),JSON.stringify({clientRequestId,payload}));}
+  catch{setStatus(el.materialRequestStatus,'No se puede conservar el identificador del envío en este navegador. Habilita el almacenamiento de la sesión para evitar duplicados.','error');return;}
+  closeMaterialRequestModal();wmControls();wmSendPending();
+  return;
+
 });
 
 function openWarehouseZoneModal() {
@@ -4516,6 +4610,8 @@ function setWarehouseTab(tabName) {
     );
   });
 
+  wm.tab=tabName;
+  if(tabName==='requests')wmLoadRequests();
   el.warehouseStockPanel.classList.toggle('hidden', tabName !== 'stock');
   el.warehouseRequestsPanel.classList.toggle('hidden', tabName !== 'requests');
   el.warehouseZonesPanel.classList.toggle('hidden', tabName !== 'zones');
@@ -4524,6 +4620,7 @@ function setWarehouseTab(tabName) {
 
 /* LOGOUT / HELPERS */
 function logout() {
+  wmReset();
   state.credential = null;
   state.credentialExpiresAt = 0;
   checkSessionExpiry_();
@@ -4689,7 +4786,19 @@ document.querySelectorAll('.warehouse-tab').forEach(button => {
   });
 });
 
-el.newMaterialRequestBtn.addEventListener('click', openMaterialRequestModal);
+el.newMaterialRequestBtn.addEventListener('click',()=>openMaterialRequestModal());
+document.getElementById('warehouseStockSearch').addEventListener('input',renderWarehouseStock);
+document.getElementById('warehouseStockZone').addEventListener('change',renderWarehouseStock);
+document.getElementById('warehouseStockState').addEventListener('change',renderWarehouseStock);
+document.getElementById('warehouseRequestState').addEventListener('change',renderWarehouseRequests);
+document.getElementById('warehouseRefreshBtn').addEventListener('click',()=>{
+  if(el.warehouseSelect.disabled){wm.bootstrapCache.delete(wmProject());openWarehouse();}
+  else if(wm.tab==='zones'){wm.bootstrapCache.delete(wmProject());setStatus(el.warehouseStatus,'Actualizando almacenes y zonas…');wmRead('warehouseBootstrap',{projectId:wmProject()});}
+  else if(wm.tab==='requests')wmLoadRequests(true);
+  else if(state.selectedWarehouseId)loadWarehouseData(true);
+  else{wm.bootstrapCache.delete(wmProject());openWarehouse();}
+});
+document.getElementById('warehouseRetryRequest').addEventListener('click',wmSendPending);
 el.closeMaterialRequestModalBtn.addEventListener('click', closeMaterialRequestModal);
 el.cancelMaterialRequestBtn.addEventListener('click', closeMaterialRequestModal);
 el.materialRequestModal.querySelector('.modal-backdrop')
@@ -4702,6 +4811,7 @@ el.materialRequestWarehouse.addEventListener('change', () => {
   clearMaterialRequestSelection();
 
   const warehouseId = el.materialRequestWarehouse.value;
+  el.materialRequestResults.innerHTML='<div class="material-search-empty">Consultando existencias…</div>';
   if (warehouseId !== state.selectedWarehouseId) {
     state.selectedWarehouseId = warehouseId;
     el.warehouseSelect.value = warehouseId;
