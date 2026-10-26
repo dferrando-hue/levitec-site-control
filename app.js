@@ -706,6 +706,9 @@ window.addEventListener('message', event => {
     case 'warehouseSyncConfirmedOrders':
       handleWarehouseSyncConfirmedOrders(msg.payload);
       break;
+    case 'warehouseReceiptDestinations':
+      handleReceiptDestinationsRC13(msg.payload);
+      break;
     case 'warehouseOrderProgress':
       handleWarehouseOrderProgress(msg.payload);
       break;
@@ -3376,6 +3379,7 @@ function openDeliveries() {
   state.deliveryCalendarDate = new Date();
 
   show(el.deliveriesView);
+  loadReceiptDestinationsRC13(state.currentProject?.id);
   setStatus(el.deliveryStatus, 'Cargando entregas…');
 
   postToBackend('deliveryList', {projectId: state.currentProject.id});
@@ -3538,6 +3542,7 @@ function renderDeliveryList() {
 function openDeliveryModal(item) {
   finishWarehouseReceiptConsult_();
   state.selectedDelivery = item;
+  loadReceiptDestinationsRC13(item.projectId);
 
   el.deliveryModalTitle.textContent = item.requestId || 'Entrega';
   el.deliveryModalMeta.textContent = [item.projectId,item.expectedDeliveryDate].filter(Boolean).join(' · ');
@@ -4085,6 +4090,7 @@ function wmCompleteRequest(payload){
   setStatus(el.warehouseStatus,'Solicitud '+payload.requestId+(payload.duplicate?' recuperada; ya estaba registrada.':' registrada. No reserva ni descuenta existencias.'),'success');
 }
 function wmReset(){
+  resetReceiptDestinationsRC13();
   if(wm.read)clearTimeout(wm.read.timer);clearTimeout(wm.writeTimer);
   wm.read=null;wm.queue=[];wm.writing=false;wm.writeContext=null;wm.stockLoading=false;wm.stockKey=null;
   wm.stockCache.clear();wm.requestCache.clear();wm.bootstrapCache.clear();
@@ -4761,7 +4767,7 @@ function receiptDialogRC11(){
   document.body.appendChild(d);
   document.getElementById('receiptWarehouseRC11').addEventListener('change',receiptZonesRC11);
   document.getElementById('receiptCancelRC11').onclick=()=>d.close();
-  document.getElementById('receiptRetryRC11').onclick=()=>consultWarehouseReceiptsFromDelivery();
+  document.getElementById('receiptRetryRC11').onclick=()=>{const p=state.selectedDelivery?.projectId;if(p){document.getElementById('receiptDestinationStatusRC11').textContent='Actualizando destinos…';loadReceiptDestinationsRC13(p,true);}};
   document.getElementById('receiptContinueRC11').onclick=()=>{
     const item=state.selectedDelivery,c=state.receiptDestinations;
     const warehouseId=document.getElementById('receiptWarehouseRC11').value,zone=document.getElementById('receiptZoneRC11').value;
@@ -4771,31 +4777,81 @@ function receiptDialogRC11(){
   };
   return d;
 }
-function receiptZonesRC11(){
+const receiptDestinationCacheRC13=new Map(),receiptDestinationPendingRC13=new Map();
+const RECEIPT_DESTINATION_TTL_RC13=60000;
+function resetReceiptDestinationsRC13(){
+  receiptDestinationPendingRC13.forEach(p=>{clearTimeout(p.timer);p.frame.remove();p.form.remove();});
+  receiptDestinationPendingRC13.clear();receiptDestinationCacheRC13.clear();state.receiptDestinations=null;
+}
+function receiptDestinationCachedRC13(projectId){
+  const entry=receiptDestinationCacheRC13.get(projectId);
+  if(entry&&Date.now()-entry.at<RECEIPT_DESTINATION_TTL_RC13)return entry.data;
+  const module=wm.bootstrapCache.get(projectId);
+  if(module&&Date.now()-module.at<30000&&Array.isArray(module.payload.warehouses)&&Array.isArray(module.payload.zones)){
+    const data={projectId,warehouses:module.payload.warehouses,zones:module.payload.zones};
+    receiptDestinationCacheRC13.set(projectId,{at:module.at,data});return data;
+  }
+  return null;
+}
+function loadReceiptDestinationsRC13(projectId,force=false){
+  if(!projectId||checkSessionExpiry_())return;
+  const cached=!force&&receiptDestinationCachedRC13(projectId);
+  if(cached){state.receiptDestinations=cached;renderReceiptDestinationRC11();return;}
+  if(receiptDestinationPendingRC13.has(projectId))return;
+  const queryId='dest-'+crypto.randomUUID(),frame=document.createElement('iframe'),form=document.createElement('form');
+  frame.name='frame-'+queryId;frame.hidden=true;form.hidden=true;form.method='POST';form.action=el.backendForm.getAttribute('action');form.target=frame.name;
+  Object.entries({action:'warehouseReceiptDestinations',credential:state.credential||'',payload:JSON.stringify({projectId,queryId,force})}).forEach(([name,value])=>{const input=document.createElement('input');input.type='hidden';input.name=name;input.value=value;form.appendChild(input);});
+  const pending={queryId,frame,form,timer:null};
+  pending.timer=setTimeout(()=>{
+    if(receiptDestinationPendingRC13.get(projectId)!==pending)return;
+    receiptDestinationPendingRC13.delete(projectId);frame.remove();form.remove();
+    const d=document.getElementById('receiptDestinationRC11');
+    if(d?.open&&state.selectedDelivery?.projectId===projectId)document.getElementById('receiptDestinationStatusRC11').textContent='No se ha recibido respuesta. Pulsa Actualizar para reintentar.';
+  },30000);
+  receiptDestinationPendingRC13.set(projectId,pending);document.body.append(frame,form);form.submit();
+}
+function handleReceiptDestinationsRC13(payload){
+  const projectId=payload?.projectId,pending=receiptDestinationPendingRC13.get(projectId);
+  if(!pending||pending.queryId!==payload.queryId)return;
+  clearTimeout(pending.timer);pending.frame.remove();pending.form.remove();receiptDestinationPendingRC13.delete(projectId);
+  if(!payload.ok||!Array.isArray(payload.warehouses)||!Array.isArray(payload.zones)){
+    const d=document.getElementById('receiptDestinationRC11');
+    if(d?.open&&state.selectedDelivery?.projectId===projectId)document.getElementById('receiptDestinationStatusRC11').textContent=payload.message||'No se han podido cargar los destinos.';
+    return;
+  }
+  const data={projectId,warehouses:payload.warehouses,zones:payload.zones};
+  receiptDestinationCacheRC13.set(projectId,{at:Date.now(),data});
+  if(state.selectedDelivery?.projectId===projectId){state.receiptDestinations=data;renderReceiptDestinationRC11();}
+}
+function receiptZonesRC11(keepZone=''){
   const c=state.receiptDestinations,w=document.getElementById('receiptWarehouseRC11').value,z=document.getElementById('receiptZoneRC11');
   z.replaceChildren(new Option('Selecciona zona',''));
   (c?.zones||[]).filter(x=>x.warehouseId===w&&x.type==='ALMACEN').forEach(x=>z.add(new Option(x.name+' · '+x.zoneId,x.zoneId)));
+  if([...z.options].some(x=>x.value===keepZone))z.value=keepZone;
   z.onchange=()=>document.getElementById('receiptContinueRC11').disabled=!z.value;
-  document.getElementById('receiptContinueRC11').disabled=true;
+  document.getElementById('receiptContinueRC11').disabled=!z.value;
 }
 function renderReceiptDestinationRC11(){
   const d=document.getElementById('receiptDestinationRC11');if(!d?.open)return;
   const c=state.receiptDestinations,item=state.selectedDelivery;
   if(!item||d.dataset.orderId!==item.requestId||c?.projectId!==item.projectId)return;
-  const select=document.getElementById('receiptWarehouseRC11');
+  const select=document.getElementById('receiptWarehouseRC11'),previous=select.value,zone=document.getElementById('receiptZoneRC11').value;
   select.replaceChildren(new Option('Selecciona almacén',''));
   c.warehouses.forEach(w=>select.add(new Option((w.name||w.id)+' · '+w.id,w.id)));
-  select.value=c.warehouses.some(w=>w.id==='HUE-MEC-N15')?'HUE-MEC-N15':'';
-  document.getElementById('receiptDestinationStatusRC11').textContent=c.warehouses.length?'Destinos activos vinculados al proyecto. Selecciona una zona.':'No hay destinos disponibles o el backend aún no admite este selector. Actualiza y comprueba la versión del servidor.';
-  receiptZonesRC11();
+  select.value=c.warehouses.some(w=>w.id===previous)?previous:c.warehouses.some(w=>w.id==='HUE-MEC-N15')?'HUE-MEC-N15':'';
+  document.getElementById('receiptDestinationStatusRC11').textContent=c.warehouses.length?'Elige el almacén y la zona de recepción.':'No hay almacenes activos vinculados al proyecto.';
+  receiptZonesRC11(previous===select.value?zone:'');
 }
 function openDeliveryReceiptInWarehouse(){
-  const item=state.selectedDelivery;if(!item?.requestId||!item.projectId){alert('Selecciona primero un pedido de Deliveries.');return;}
-  const d=receiptDialogRC11();d.dataset.orderId=item.requestId;state.receiptDestinations=null;
-  document.getElementById('receiptWarehouseRC11').replaceChildren();document.getElementById('receiptZoneRC11').replaceChildren();
+  const item=state.selectedDelivery;if(!item?.requestId||!item.projectId||checkSessionExpiry_())return;
+  const d=receiptDialogRC11();d.dataset.orderId=item.requestId;
+  state.receiptDestinations=receiptDestinationCachedRC13(item.projectId);
+  document.getElementById('receiptWarehouseRC11').replaceChildren(new Option('Cargando almacenes…',''));
+  document.getElementById('receiptZoneRC11').replaceChildren(new Option('Selecciona almacén primero',''));
   document.getElementById('receiptContinueRC11').disabled=true;
-  document.getElementById('receiptDestinationStatusRC11').textContent='Consultando destinos… Si no responde, pulsa Actualizar destinos.';
-  d.showModal();consultWarehouseReceiptsFromDelivery();
+  document.getElementById('receiptDestinationStatusRC11').textContent='Cargando almacenes y zonas…';
+  d.showModal();
+  if(state.receiptDestinations)renderReceiptDestinationRC11();else loadReceiptDestinationsRC13(item.projectId);
 }
 
 document.getElementById('warehouseOpenReceiptBtn').addEventListener('click',openDeliveryReceiptInWarehouse);
@@ -5285,8 +5341,6 @@ function handleWarehouseOrderProgress(payload){
   if(!Array.isArray(payload.orders)){
     handleWarehouseReceiptContext({ok:false,message:'Warehouse devolvió una respuesta sin lista de pedidos.'});return;
   }
-  state.receiptDestinations={projectId:project,warehouses:payload.warehouses||[],zones:payload.zones||[]};
-  renderReceiptDestinationRC11();
   state.warehouseOrderProgress=Object.fromEntries(payload.orders.map(o=>[o.requestId,o]));
   if(state.selectedDelivery?.requestId===consulted){
     const order=state.warehouseOrderProgress[consulted];
