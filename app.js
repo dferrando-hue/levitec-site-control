@@ -4753,17 +4753,51 @@ el.closeDeliveryModalBtn.addEventListener('click', closeDeliveryModal);
 el.deliveryModal.querySelector('.modal-backdrop').addEventListener('click', closeDeliveryModal);
 document.getElementById('warehouseReceiptCheckBtn').addEventListener('click', consultWarehouseReceiptsFromDelivery);
 const WAREHOUSE_RECEIPT_URL = 'https://davidferrandoescart.github.io/levitec-almacen-obra/';
-function openDeliveryReceiptInWarehouse(){
-  const item=state.selectedDelivery;
-  if(!item || !item.requestId || !item.projectId){
-    alert('Selecciona primero un pedido de Deliveries.');return;
-  }
-  const url=new URL(WAREHOUSE_RECEIPT_URL);
-  url.searchParams.set('view','receipt');
-  url.searchParams.set('orderId',item.requestId);
-  url.searchParams.set('projectId',item.projectId);
-  window.open(url.toString(),'_blank','noopener,noreferrer');
+function receiptDialogRC11(){
+  let d=document.getElementById('receiptDestinationRC11');if(d)return d;
+  d=document.createElement('dialog');d.id='receiptDestinationRC11';
+  d.style.cssText='max-width:520px;width:90%;border:0;border-radius:16px;padding:24px';
+  d.innerHTML='<h2>Destino de la recepción</h2><p>Elige almacén y zona antes de abrir Warehouse. Allí podrás recibir solo las cantidades que hayan llegado.</p><p id="receiptDestinationStatusRC11" role="status"></p><label>Almacén<select id="receiptWarehouseRC11" style="display:block;width:100%;margin:10px 0"></select></label><label>Zona conforme<select id="receiptZoneRC11" style="display:block;width:100%;margin:10px 0"></select></label><p>Warehouse verificará tus permisos y el pendiente real antes de registrar.</p><button type="button" id="receiptContinueRC11">Abrir recepción</button> <button type="button" id="receiptRetryRC11">Actualizar destinos</button> <button type="button" id="receiptCancelRC11">Cancelar</button>';
+  document.body.appendChild(d);
+  document.getElementById('receiptWarehouseRC11').addEventListener('change',receiptZonesRC11);
+  document.getElementById('receiptCancelRC11').onclick=()=>d.close();
+  document.getElementById('receiptRetryRC11').onclick=()=>consultWarehouseReceiptsFromDelivery();
+  document.getElementById('receiptContinueRC11').onclick=()=>{
+    const item=state.selectedDelivery,c=state.receiptDestinations;
+    const warehouseId=document.getElementById('receiptWarehouseRC11').value,zone=document.getElementById('receiptZoneRC11').value;
+    if(!item||item.requestId!==d.dataset.orderId||item.projectId!==c?.projectId||!c.warehouses.some(w=>w.id===warehouseId)||!c.zones.some(z=>z.warehouseId===warehouseId&&z.zoneId===zone&&z.type==='ALMACEN'))return;
+    const url=new URL(WAREHOUSE_RECEIPT_URL);Object.entries({view:'receipt',orderId:item.requestId,projectId:item.projectId,warehouseId,zone}).forEach(([k,v])=>url.searchParams.set(k,v));
+    window.open(url.toString(),'_blank','noopener,noreferrer');d.close();
+  };
+  return d;
 }
+function receiptZonesRC11(){
+  const c=state.receiptDestinations,w=document.getElementById('receiptWarehouseRC11').value,z=document.getElementById('receiptZoneRC11');
+  z.replaceChildren(new Option('Selecciona zona',''));
+  (c?.zones||[]).filter(x=>x.warehouseId===w&&x.type==='ALMACEN').forEach(x=>z.add(new Option(x.name+' · '+x.zoneId,x.zoneId)));
+  z.onchange=()=>document.getElementById('receiptContinueRC11').disabled=!z.value;
+  document.getElementById('receiptContinueRC11').disabled=true;
+}
+function renderReceiptDestinationRC11(){
+  const d=document.getElementById('receiptDestinationRC11');if(!d?.open)return;
+  const c=state.receiptDestinations,item=state.selectedDelivery;
+  if(!item||d.dataset.orderId!==item.requestId||c?.projectId!==item.projectId)return;
+  const select=document.getElementById('receiptWarehouseRC11');
+  select.replaceChildren(new Option('Selecciona almacén',''));
+  c.warehouses.forEach(w=>select.add(new Option((w.name||w.id)+' · '+w.id,w.id)));
+  select.value=c.warehouses.some(w=>w.id==='HUE-MEC-N15')?'HUE-MEC-N15':'';
+  document.getElementById('receiptDestinationStatusRC11').textContent=c.warehouses.length?'Destinos activos vinculados al proyecto. Selecciona una zona.':'No hay destinos disponibles o el backend aún no admite este selector. Actualiza y comprueba la versión del servidor.';
+  receiptZonesRC11();
+}
+function openDeliveryReceiptInWarehouse(){
+  const item=state.selectedDelivery;if(!item?.requestId||!item.projectId){alert('Selecciona primero un pedido de Deliveries.');return;}
+  const d=receiptDialogRC11();d.dataset.orderId=item.requestId;state.receiptDestinations=null;
+  document.getElementById('receiptWarehouseRC11').replaceChildren();document.getElementById('receiptZoneRC11').replaceChildren();
+  document.getElementById('receiptContinueRC11').disabled=true;
+  document.getElementById('receiptDestinationStatusRC11').textContent='Consultando destinos… Si no responde, pulsa Actualizar destinos.';
+  d.showModal();consultWarehouseReceiptsFromDelivery();
+}
+
 document.getElementById('warehouseOpenReceiptBtn').addEventListener('click',openDeliveryReceiptInWarehouse);
 
 el.deliveryMilestoneSelect.addEventListener('change', updateDeliveryMilestoneOffset);
@@ -5251,6 +5285,8 @@ function handleWarehouseOrderProgress(payload){
   if(!Array.isArray(payload.orders)){
     handleWarehouseReceiptContext({ok:false,message:'Warehouse devolvió una respuesta sin lista de pedidos.'});return;
   }
+  state.receiptDestinations={projectId:project,warehouses:payload.warehouses||[],zones:payload.zones||[]};
+  renderReceiptDestinationRC11();
   state.warehouseOrderProgress=Object.fromEntries(payload.orders.map(o=>[o.requestId,o]));
   if(state.selectedDelivery?.requestId===consulted){
     const order=state.warehouseOrderProgress[consulted];
