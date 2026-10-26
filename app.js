@@ -603,7 +603,7 @@ function initGoogleIdentity() {
     size: 'large',
     shape: 'rectangular',
     text: 'signin_with',
-    width: 350,
+    width: Math.max(180,Math.min(350,Math.floor(el.googleButton.clientWidth || window.innerWidth-100))),
     logo_alignment: 'left'
   });
 }
@@ -3427,6 +3427,40 @@ function renderDeliverySummary() {
   el.deliveryReceivedCount.textContent = state.deliveries.filter(isDeliveryReceived).length;
 }
 
+function mobileCalendarIsoRC15(date){return [date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');}
+function mobileCalendarItemsRC15(iso){
+  return {deliveries:state.planningCalendarFilter==='SUBCONTRACTS'?[]:(state.deliveries||[]).filter(x=>x.expectedDeliveryDate===iso),
+    works:state.planningCalendarFilter==='DELIVERIES'?[]:(state.subcontractWorks||[]).filter(x=>x.start===iso),
+    milestones:(state.constructionMilestones||[]).filter(x=>x.date===iso)};
+}
+function renderMobileDeliveryCalendarRC15(){
+  let container=document.getElementById('mobileDeliveryCalendarRC15');
+  if(!container){container=document.createElement('div');container.id='mobileDeliveryCalendarRC15';container.className='mobile-delivery-calendar';el.deliveryCalendar.after(container);}
+  const base=state.deliveryCalendarDate,year=base.getFullYear(),month=base.getMonth(),first=new Date(year,month,1),prefix=mobileCalendarIsoRC15(first).slice(0,7),today=todayIso();
+  if(!state.mobileDeliveryDayRC15||!state.mobileDeliveryDayRC15.startsWith(prefix))state.mobileDeliveryDayRC15=today.startsWith(prefix)?today:mobileCalendarIsoRC15(first);
+  const selected=state.mobileDeliveryDayRC15,start=new Date(year,month,1-(first.getDay()+6)%7);
+  let grid=['L','M','X','J','V','S','D'].map(day=>'<span class="mobile-calendar-weekday" aria-hidden="true">'+day+'</span>').join('');
+  for(let i=0;i<42;i++){
+    const date=new Date(start);date.setDate(start.getDate()+i);const iso=mobileCalendarIsoRC15(date),inside=date.getMonth()===month,items=mobileCalendarItemsRC15(iso),count=items.deliveries.length+items.works.length+items.milestones.length;
+    const label=date.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})+(count?' · '+count+' actividad(es)':' · sin actividad');
+    grid+='<button type="button" class="mobile-calendar-day'+(count?' has-activity':'')+(iso===selected?' selected':'')+(iso===today?' today':'')+'" data-mobile-day="'+iso+'" '+(!inside?'disabled':'')+' aria-pressed="'+(iso===selected)+'" '+(iso===today?'aria-current="date"':'')+' aria-label="'+esc(label)+'"><span>'+date.getDate()+'</span>'+(count?'<i aria-hidden="true"></i>':'')+'</button>';
+  }
+  const day=new Date(Number(selected.slice(0,4)),Number(selected.slice(5,7))-1,Number(selected.slice(8,10))),items=mobileCalendarItemsRC15(selected),total=items.deliveries.length+items.works.length+items.milestones.length;
+  const button=(kind,id,title,subtitle)=>'<button type="button" class="mobile-agenda-event '+kind+'" data-agenda-kind="'+kind+'" data-agenda-id="'+esc(id)+'"><strong>'+esc(title)+'</strong><span>'+esc(subtitle)+'</span><small>Abrir detalle →</small></button>';
+  const group=(title,list)=>list.length?'<section class="mobile-agenda-group"><h4>'+title+' <span>'+list.length+'</span></h4>'+list.join('')+'</section>':'';
+  const agenda=group('Pedidos',items.deliveries.map(x=>button('delivery',x.requestId,x.supplier||x.requestId,x.poNumber||x.requestId)))+
+    group('Subcontratas',items.works.map(x=>button('work',x.id,x.supplier||'Subcontrata',(x.activity||'Inicio de trabajo')+(x.planned?' · '+x.planned+' personas':''))))+
+    group('Hitos',items.milestones.map(x=>button('milestone',x.milestoneId,x.title,x.type||'Hito constructivo')));
+  container.innerHTML='<div class="mobile-calendar-picker"><div class="mobile-calendar-grid" role="group" aria-label="Seleccionar día del mes">'+grid+'</div><p class="mobile-calendar-legend"><i aria-hidden="true"></i> Día con actividad · toca para ver el detalle</p></div><section class="mobile-calendar-agenda" aria-live="polite" aria-atomic="false"><div class="mobile-agenda-heading"><h3>'+esc(day.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'}))+'</h3><span>'+total+' actividad(es)</span></div>'+(agenda||'<p class="mobile-agenda-empty">No hay actividad para este día con los filtros actuales.</p>')+'</section>';
+  container.querySelectorAll('[data-mobile-day]').forEach(btn=>btn.onclick=()=>{state.mobileDeliveryDayRC15=btn.dataset.mobileDay;renderMobileDeliveryCalendarRC15();document.querySelector('#mobileDeliveryCalendarRC15 [data-mobile-day="'+state.mobileDeliveryDayRC15+'"]').focus({preventScroll:true});});
+  container.querySelectorAll('[data-agenda-kind]').forEach(btn=>btn.onclick=()=>{
+    const id=btn.dataset.agendaId;
+    if(btn.dataset.agendaKind==='delivery'){const item=state.deliveries.find(x=>x.requestId===id);if(item)openDeliveryModal(item);}
+    if(btn.dataset.agendaKind==='work'){const item=state.subcontractWorks.find(x=>x.id===id);if(item)openSubcontractModal(item);}
+    if(btn.dataset.agendaKind==='milestone'){const item=state.constructionMilestones.find(x=>x.milestoneId===id);if(item)openMilestoneDetail(item);}
+  });
+}
+
 function renderDeliveryCalendar() {
   const base = state.deliveryCalendarDate;
   const year = base.getFullYear();
@@ -3455,11 +3489,12 @@ function renderDeliveryCalendar() {
     const works = state.planningCalendarFilter === 'DELIVERIES' ? [] : state.subcontractWorks.filter(w => w.start === iso);
     const milestones = state.constructionMilestones.filter(item => item.date === iso);
     const classes = ['calendar-day'];
+    if(items.length||works.length||milestones.length)classes.push('has-events');
     if (date.getMonth() !== month) classes.push('outside');
     if (iso === todayIso()) classes.push('today');
 
     html += `
-      <div class="${classes.join(' ')}">
+      <div class="${classes.join(' ')}" data-mobile-date="${esc(date.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'}))}">
         <div class="calendar-day-number">${date.getDate()}</div>
         ${milestones.map(milestone => `
           <button class="calendar-milestone" type="button" data-milestone-id="${esc(milestone.milestoneId)}">
@@ -3482,6 +3517,8 @@ function renderDeliveryCalendar() {
   }
 
   el.deliveryCalendar.innerHTML = html;
+  renderMobileDeliveryCalendarRC15();
+  if(!el.deliveryCalendar.querySelector('.has-events:not(.outside)'))el.deliveryCalendar.insertAdjacentHTML('beforeend','<div class="calendar-mobile-empty">Sin eventos para los filtros de este mes.</div>');
 
   el.deliveryCalendar.querySelectorAll('.calendar-event').forEach(button => {
     button.addEventListener('click', () => {
