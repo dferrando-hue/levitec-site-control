@@ -3166,3 +3166,13 @@ button{cursor:pointer}
   background: #000000;
   color: #ffffff;
 }
+
+/* RC16 · Identidad negra consistente en escritorio y móvil */
+.topbar{background:#000;border-bottom-color:#202020;color:#fff}
+.topbar .brand-title,.topbar .top-user-text strong{color:#fff}
+.topbar .brand-subtitle,.topbar .top-user-text span{color:#c8c8c8}
+.topbar .brand-mark{display:block;width:42px;height:42px;flex:none;object-fit:contain;background:#000;border-radius:9px;padding:0}
+.topbar #logoutBtn{background:#171717;border-color:#555;color:#fff}
+.topbar #logoutBtn:hover{background:#303030}
+.login-card .eyebrow{background:#000;color:#fff}
+@media(max-width:760px){.topbar .brand-mark{width:34px;height:34px}}
