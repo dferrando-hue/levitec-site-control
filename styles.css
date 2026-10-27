@@ -3132,3 +3132,37 @@ button{cursor:pointer}
 @media screen and (max-width:760px){
  #deliveryCalendar{display:none!important}.calendar-shell:has(.mobile-delivery-calendar){border:0;background:transparent;overflow:visible}.mobile-delivery-calendar{display:block;min-width:0;width:100%}.mobile-calendar-picker{background:#fff;border:1px solid #dce6eb;border-radius:15px;padding:12px}.mobile-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}.mobile-calendar-weekday{text-align:center;font-size:11px;font-weight:800;color:#7a8e9c;padding:5px 0 8px}.mobile-calendar-day{position:relative;display:flex;align-items:center;justify-content:center;width:100%;min-width:0;height:45px;border:0;background:transparent;border-radius:10px;color:#19364a;font:inherit;font-size:14px;font-weight:650;padding:0 0 6px;cursor:pointer}.mobile-calendar-day:disabled{color:#c2ccd3;cursor:default}.mobile-calendar-day.today:not(.selected){box-shadow:inset 0 0 0 1px #82c8c5}.mobile-calendar-day.selected{background:#078d8a;color:#fff}.mobile-calendar-day i{position:absolute;bottom:5px;left:calc(50% - 3.5px);width:7px;height:7px;border-radius:50%;background:#ed9c31}.mobile-calendar-day:disabled i{opacity:.3}.mobile-calendar-day:focus-visible{outline:2px solid #075d68;outline-offset:1px}.mobile-calendar-legend{display:flex;align-items:center;gap:7px;margin:12px 0 0;font-size:11px;line-height:1.4;color:#6f8594}.mobile-calendar-legend i{width:7px;height:7px;border-radius:50%;background:#ed9c31;flex:none}.mobile-calendar-agenda{margin-top:14px;border:1px solid #dce6eb;background:#fff;border-radius:15px;padding:15px}.mobile-agenda-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:14px}.mobile-agenda-heading h3{margin:0;font-size:15px;line-height:1.4;text-transform:capitalize;min-width:0}.mobile-agenda-heading>span{font-size:10px;color:#6e8292;white-space:nowrap;padding-top:4px}.mobile-agenda-group{margin:0 0 15px}.mobile-agenda-group:last-child{margin:0}.mobile-agenda-group h4{display:flex;align-items:center;gap:7px;margin:0 0 7px;font-size:11px;color:#6d8293;text-transform:uppercase;letter-spacing:.06em}.mobile-agenda-group h4 span{font-size:10px;background:#eef4f6;border-radius:12px;padding:2px 6px}.mobile-agenda-event{display:block;width:100%;min-width:0;min-height:44px;text-align:left;padding:11px 12px;margin-top:6px;border:1px solid #d7e9e8;border-left:3px solid #119996;border-radius:9px;background:#f1faf9;white-space:normal;color:#173c4b;cursor:pointer}.mobile-agenda-event.work{border-left-color:#8b6ab7;background:#faf7ff}.mobile-agenda-event.milestone{border-left-color:#b99346;background:#fffbf3}.mobile-agenda-event strong{display:block;overflow-wrap:anywhere;font-size:13px;line-height:1.4}.mobile-agenda-event>span{display:block;overflow-wrap:anywhere;font-size:11px;color:#647b8b;margin-top:3px;line-height:1.5}.mobile-agenda-event small{display:block;font-size:10px;color:#157b80;margin-top:6px}.mobile-agenda-empty{padding:10px 0;font-size:13px;line-height:1.5;color:#6e8291}
 }
+/* IDENTIDAD VISUAL LEVITEC SITE CONTROL */
+
+.topbar {
+  background: #000000;
+  border-bottom: 2px solid #000000;
+}
+
+.brand-mark {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 10px;
+  background: #000000;
+  object-fit: contain;
+}
+
+.brand-title {
+  color: #ffffff;
+}
+
+.brand-subtitle,
+.top-user-text span {
+  color: #c8c8c8;
+}
+
+.top-user-text strong {
+  color: #ffffff;
+}
+
+/* Etiqueta SITE CONTROL de la pantalla de acceso */
+.login-card .eyebrow {
+  background: #000000;
+  color: #ffffff;
+}
