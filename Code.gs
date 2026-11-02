@@ -1776,7 +1776,7 @@ function ensurePurchaseSheet_() {
 }
 
 
-function migratePurchaseSchemaV064() {
+function migratePurchaseSchemaV064_() {
   const sh = ensurePurchaseSheet_();
 
   Logger.log(
@@ -2801,7 +2801,7 @@ function equipmentLocationsGlobal_(p) {
    WAREHOUSE MULTI-ALMACÉN
    ========================================================= */
 
-function setupWarehouseCore() {
+function setupWarehouseCore_() {
   const ss = getDb_();
 
   ensureNamedSheet_(ss, SHEETS.WAREHOUSES, [
@@ -2908,7 +2908,7 @@ function ensureNamedSheet_(ss, name, headers) {
 
 
 function getUserWarehouses_(email, globalRole) {
-  setupWarehouseCore();
+  setupWarehouseCore_();
 
   const warehouses = readTable_(SHEETS.WAREHOUSES)
     .filter(row =>
@@ -4715,7 +4715,7 @@ function repairMalformedPurchaseRows_() {
 }
 
 
-function repairPurchaseRequestsV031() {
+function repairPurchaseRequestsV031_() {
   const repaired = repairMalformedPurchaseRows_();
 
   Logger.log(
@@ -4871,7 +4871,7 @@ function isYes_(value) {
    TESTS
    ========================================================= */
 
-function testUserAccess() {
+function testUserAccess_() {
   const email = 'dferrando@levitec.es';
   const user = getUserProfile_(email);
   const permissions = user ? getUserPermissions_(user.role) : [];
@@ -4887,7 +4887,7 @@ function testUserAccess() {
 // Añade temporalmente esta función al Code.gs de Site Control.
 // Ejecútala desde el editor de Apps Script. NO es necesario desplegarla.
 // No modifica datos ni envía correos.
-function diagnosticarDestinatariosZAZ091() {
+function diagnosticarDestinatariosZAZ091_() {
   const projectId = 'ZAZ091';
   const users = readTable_(SHEETS.USERS);
   const assignments = readUserProjectAssignments_();
