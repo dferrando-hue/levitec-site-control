@@ -1138,6 +1138,7 @@ function renderModules() {
     .forEach(module => {
       const card = document.createElement('article');
       card.className = 'module-card';
+      const pending = ['documents','electrical'].includes(module.key);
 
       if (['site','equipment','mechanical','purchases','deliveries','warehouse'].includes(module.key)) {
         card.classList.add('clickable');
@@ -1146,6 +1147,7 @@ function renderModules() {
       card.innerHTML = `
         <div class="module-icon">${esc(module.icon)}</div>
         <h3>${esc(module.title)}</h3>
+        ${pending ? '<p class="module-availability"><strong>Pendiente de implementación</strong></p>' : ''}
         <p>${esc(module.description)}</p>
         <div class="module-actions">
           ${module.tags.map(tag => `<span class="module-tag">${esc(tag)}</span>`).join('')}
@@ -1250,10 +1252,10 @@ function handleMechanicalReadiness(payload) {
 
 function mechanicalReadinessStatusLabel(status) {
   return ({
-    READY:'LISTO PARA EJECUTAR',
-    AT_RISK:'EN RIESGO',
-    BLOCKED:'BLOQUEADO',
-    NOT_CONFIGURED:'SIN CONFIGURAR'
+    READY:'SUBMITTALS APROBADOS',
+    AT_RISK:'SUBMITTALS EN RIESGO',
+    BLOCKED:'SUBMITTALS BLOQUEADOS',
+    NOT_CONFIGURED:'SUBMITTALS SIN CONFIGURAR'
   })[status] || status || 'SIN CONFIGURAR';
 }
 
@@ -1388,7 +1390,7 @@ function renderMechanicalReadiness() {
       r.blockers > 0
         ? `${r.blockers} submittal${r.blockers === 1 ? '' : 's'} pendiente${r.blockers === 1 ? '' : 's'} de A`
         : r.requiredSubmittals > 0
-          ? 'Sin bloqueos documentales'
+          ? 'Sin submittals pendientes de A'
           : 'Pendiente de definir los documentos aplicables';
 
     card.innerHTML = `
@@ -1405,7 +1407,7 @@ function renderMechanicalReadiness() {
 
       <div class="readiness-kpi-grid">
         <div class="readiness-kpi primary">
-          <span>ÍNDICE DE PREPARACIÓN</span>
+          <span>ÍNDICE DE SUBMITTALS</span>
           <strong>${Number(r.readinessIndex || 0)}</strong>
           <small>submittals en A / 100</small>
         </div>
@@ -1415,7 +1417,7 @@ function renderMechanicalReadiness() {
           <small>documentos requeridos</small>
         </div>
         <div class="readiness-kpi ${r.blockers ? 'danger' : ''}">
-          <span>BLOQUEOS</span>
+          <span>BLOQUEOS DE SUBMITTALS</span>
           <strong>${Number(r.blockers || 0)}</strong>
           <small>${esc(blockerHeadline)}</small>
         </div>
